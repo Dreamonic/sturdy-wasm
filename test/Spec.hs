@@ -1,2 +1,6 @@
+import Test.QuickCheck
+import Test.Hspec
+import LexerTest
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = testTokenizeString

@@ -1,7 +1,7 @@
-module Lexer
-    ( Token (..)
+module Lexer( 
+    Token (..)
     , tokenizeString
-    ) where
+) where
 
 import Data.Char (isDigit)
 
@@ -41,13 +41,13 @@ tokenizeNumber str = case dropWhile isDigit str of
     _ -> Reserved str
 
 checkKeyword :: String -> Bool
-checkKeyword str = head str >= 'a' && head str <= 'z' && all isIDChar (tail str) 
+checkKeyword str = head str >= 'a' && head str <= 'z' && all isIDChar str
 
 isIDChar:: Char -> Bool
 isIDChar c 
     | c >= '0' && c <='9' = True
     | c >= 'A' && c <='Z' = True
-    | c >= 'a' && c <='a' = True
+    | c >= 'a' && c <='z' = True
     | elem c "!#$%&*+-./" = True
     | elem c ":<=>?@\\~_|" = True
     | otherwise = False
