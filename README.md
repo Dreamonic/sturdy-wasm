@@ -14,3 +14,8 @@ To install stack follow the instructions outlined [here](https://docs.haskellsta
 stack build
 stack exec sturdy-wasm-exe
 ```
+
+## How to run tests
+```
+stack test
+```
