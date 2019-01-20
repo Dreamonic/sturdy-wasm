@@ -9,4 +9,4 @@ someFunc :: IO ()
 someFunc = do
     putStrLn "Character: "
     input <- getLine
-    print (tokenizeString input)
+    print (tokenizeAll input)
