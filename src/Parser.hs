@@ -10,8 +10,6 @@ module Parser(
   , Result(..)
 ) where
 
--- import Lexer (Token)
-
 data WasmType
   = I32
   | I64
