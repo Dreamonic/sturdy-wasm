@@ -24,6 +24,8 @@ dependencies:
 
 library:
   source-dirs: src
+  dependencies:
+    - containers
 
 executables:
   sturdy-wasm-exe:
@@ -35,7 +37,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - sturdy-wasm
-    - containers
 
 tests:
   sturdy-wasm-test:
