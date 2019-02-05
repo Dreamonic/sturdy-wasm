@@ -4,11 +4,12 @@ module Lib
 
 
 import Lexer
+import Parser
 import Executor
 
 someFunc :: IO ()
 someFunc = do
-  executeFunc wasmAdd
+  print (show $ validParams wasmAdd [I32Val 4, I32Val 2])
 --    putStrLn "Character: "
 --    input <- getLine
 --    print (tokenizeString input)
