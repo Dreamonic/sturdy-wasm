@@ -1,10 +1,16 @@
 module Parser(
   WasmType(..)
+  , WasmModule(..)
+  , Func(..)
+  , Instr(..)
+  , TypedInstr(..)
+  , WasmVal(..)
+  , Block(..)
   , Param(..)
   , Result(..)
 ) where
 
-import Lexer (Token)
+-- import Lexer (Token)
 
 data WasmType
   = I32
@@ -47,9 +53,16 @@ data WasmVal
   | F64Val Double
   deriving (Show, Eq)
 
-data Param = Param WasmType deriving (Show, Eq)
+sameType :: WasmVal -> WasmType -> Bool
+sameType (I32Val _) I32 = True
+sameType (I64Val _) I64 = True
+sameType (F32Val _) F32 = True
+sameType (F64Val _) F64 = True
+sameType _ _ = False
+
+data Param = Param String WasmType deriving (Show, Eq)
 data Result = Result WasmType deriving (Show, Eq)
 data SignedNess = Signed | Unsigned deriving (Show, Eq)
-data Block = Block [Instr] [Result] deriving (Show, Eq)
+data Block = Block [Result] [Instr] deriving (Show, Eq)
 data Func = Func String [Param] Block deriving (Show, Eq)
 data WasmModule = WasmModule [Func] deriving (Show, Eq)

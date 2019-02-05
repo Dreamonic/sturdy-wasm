@@ -4,9 +4,11 @@ module Lib
 
 
 import Lexer
+import Executor
 
 someFunc :: IO ()
 someFunc = do
-    putStrLn "Character: "
-    input <- getLine
-    print (tokenizeString input)
+  executeFunc wasmAdd
+--    putStrLn "Character: "
+--    input <- getLine
+--    print (tokenizeString input)
