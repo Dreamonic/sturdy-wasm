@@ -8,7 +8,7 @@ module Parser(
   , Block(..)
   , Param(..)
   , Result(..)
-  , sameType
+  , ofType
 ) where
 
 data WasmType
@@ -53,23 +53,26 @@ data WasmVal
   deriving (Show, Eq)
 
 getType :: WasmVal -> WasmType
-getType (I32Val _) = I32
-getType (I64Val _) = I64
-getType (F32Val _) = F32
-getType (F64Val _) = F64
+getType typ = case typ of
+  (I32Val _) -> I32
+  (I64Val _) -> I64
+  (F32Val _) -> F32
+  (F64Val _) -> F64
 
-sameType :: WasmVal -> WasmType -> Bool
-sameType val typ = (getType val) == typ
+ofType :: WasmVal -> WasmType -> Bool
+ofType val typ = (getType val) == typ
 
 toWasmI :: WasmType -> Integer -> WasmVal
-toWasmI I32 x = I32Val x
-toWasmI I64 x = I64Val x
-toWasmI typ x = toWasmF typ (fromIntegral x)
+toWasmI typ x = case typ of
+  I32 -> I32Val x
+  I64 -> I64Val x
+  _   -> toWasmF typ (fromIntegral x)
 
 toWasmF :: WasmType -> Double -> WasmVal
-toWasmF F32 x = F32Val x
-toWasmF F64 x = F64Val x
-toWasmF typ x = toWasmI typ (round x)
+toWasmF typ x = case typ of
+  F32 -> F32Val x
+  F64 -> F64Val x
+  _   -> toWasmI typ (round x)
 
 data Param = Param String WasmType deriving (Show, Eq)
 data Result = Result WasmType deriving (Show, Eq)
