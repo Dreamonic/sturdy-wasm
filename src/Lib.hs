@@ -9,7 +9,7 @@ import Executor
 someFunc :: IO ()
 someFunc = do
   print (show $ execFunc foo [I32Val 8, I32Val 2, I32Val 5, I32Val 7])
-  print (show $ execFunc wasmAddThree [F32Val 2.2, F32Val 6.7, F32Val 13.21])
+  print (show $ execFunc addThree [F32Val 2.2, F32Val 6.7, F32Val 13.21])
 --    putStrLn "Character: "
 --    input <- getLine
 --    print (tokenizeString input)
@@ -25,7 +25,7 @@ foo = Func "foo" [Param "a" I32, Param "b" I32, Param "c" I32,
     Numeric (Sub I32)
     ])
 
-wasmAddThree = Func "addThree" [Param "a" F32, Param "b" F32, Param "c" F32]
+addThree = Func "addThree" [Param "a" F32, Param "b" F32, Param "c" F32]
   (Block [Result F32] [
     LocalGet "a",
     LocalGet "b",
