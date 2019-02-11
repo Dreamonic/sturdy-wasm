@@ -8,6 +8,7 @@ module Parser(
   , Block(..)
   , Param(..)
   , Result(..)
+  , SignedNess(..)
   , ofType
 ) where
 
