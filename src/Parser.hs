@@ -43,7 +43,7 @@ data TypedInstr
   | Add WasmType
   | Sub WasmType
   | Mul WasmType
-  | Div WasmType SignedNess
+  | Div WasmType SignedNess   -- TODO: keep it like this, or introduce seperate Div instructions (one for floats, and signed and unsigned)
   | Rem WasmType SignedNess
   | And WasmType
   | Or WasmType
@@ -141,27 +141,16 @@ extractReserved _              = mzero
 
 extractKeyword :: Token -> Parser String
 extractKeyword (Keyword str) = return str
-extractKeyword _              = mzero
+extractKeyword _             = mzero
 
+extractFloatN :: Token -> Parser Double
+extractFloatN (FloatN number) = return number
+extractFloatN _               = mzero
 
-parseInstruction = parseGetLocal <|> parseTypedInstruction
-
-parseGetLocal :: Parser Instr
-parseGetLocal = do
-  keyword "get_local"
-  return LocalGet <*> idStr
-
-{- 
-  parsing typed instructions:
-  note: not sure if it is actually a good idea to try to generalize this,
-    not all combinations of types and numeric instructions actually exist
--}
-parseTypedInstruction :: Parser Instr
-parseTypedInstruction = do
-  keyword <- sat isKeyword
-  (t, i) <- extractTypedInstruction keyword
-  typedInstr   <- makeTI i t
-  return (Numeric typedInstr)
+extractInt :: Token -> Parser Integer
+extractInt (SignedN number)   = return number
+extractInt (UnsignedN number) = return number
+extractInt _                  = mzero
 
 extractTypedInstruction :: Token -> Parser (WasmType, String)
 extractTypedInstruction (Keyword str)
@@ -171,13 +160,78 @@ extractTypedInstruction (Keyword str)
   | Just func <- stripPrefix "f64." str = return (F64, func)
 extractTypedInstruction _               = mzero
 
--- TODO: div only exists for floats, ints have div_s and div_u
-makeTI :: String -> WasmType -> Parser TypedInstr
-makeTI "add" t = return $ Add t
-makeTI "sub" t = return $ Add t
-makeTI "mul" t = return $ Add t
-makeTI "div" t = return $ Add t
+isInt :: WasmType -> Bool
+isInt I32 = True
+isInt I64 = True
+isInt _   = False
 
+isFloat :: WasmType -> Bool
+isFloat F32 = True
+isFloat F64 = True
+isFloat _   = False
+
+float :: Parser Double
+float = do
+  tkn <- sat isFloatN
+  extractFloatN tkn
+
+int :: Parser Integer
+int = do
+  tkn <- sat isIntN
+  extractInt tkn
+-- wrapWasmVal :: Num a -> WasmVal a
+
+parseInstruction = parseGetLocal <|> parseNumericInstr
+
+parseGetLocal :: Parser Instr
+parseGetLocal = do
+  keyword "get_local"
+  return LocalGet <*> idStr
+
+parseConst :: Parser Instr
+parseConst = do
+  keyword <- sat isKeyword
+  (t, i) <- extractTypedInstruction keyword
+  if i /= "const"
+    then
+      mzero
+    else
+      case t of
+        F32 -> Numeric . Parser.Const . F32Val <$> float
+        F64 -> Numeric . Parser.Const . F64Val <$> float
+        I32 -> Numeric . Parser.Const . I32Val <$> int
+        I64 -> Numeric . Parser.Const . I64Val <$> int
+
+parseNumericInstr :: Parser Instr
+parseNumericInstr = parseConst <|> do
+  keyword <- sat isKeyword
+  (t, i) <- extractTypedInstruction keyword
+  typedInstr <- case t of
+    t | isInt t   -> makeII i t
+    t | isFloat t -> makeFI i t
+  return (Numeric typedInstr)
+
+-- makeIntegerInstruction
+makeII :: String -> WasmType -> Parser TypedInstr
+makeII "add" t   = return $ Add t
+makeII "sub" t   = return $ Sub t
+makeII "mul" t   = return $ Mul t
+makeII "div_s" t = return $ Div t Signed
+makeII "div_u" t = return $ Div t Unsigned
+makeII "rem_s" t = return $ Rem t Signed
+makeII "rem_u" t = return $ Rem t Unsigned
+makeII "and" t   = return $ And t
+makeII "or"  t   = return $ Or t
+makeII "xor" t   = return $ Xor t
+
+-- makeFloatInstruction
+makeFI :: String -> WasmType -> Parser TypedInstr
+makeFI "add" t = return $ Add t
+makeFI "sub" t = return $ Sub t
+makeFI "mul" t = return $ Mul t
+makeFI "div" t = return $ Div t Signed
+makeFI "abs" t = return $ Abs t
+makeFI "neg" t = return $ Neg t
 
 isToken :: Token -> Token -> Bool
 isToken tkn = (== tkn)
@@ -189,6 +243,15 @@ isKeyword _           = False
 isId :: Token -> Bool
 isId (ID _) = True
 isId _      = False
+
+isFloatN :: Token -> Bool
+isFloatN (FloatN _) = True
+isFloatN _          = False
+
+isIntN :: Token -> Bool
+isIntN (SignedN _)   = True
+isIntN (UnsignedN _) = True
+isIntN _             = False
 
 -- succeeds if the next token is a keyword with string str, fails otherwise
 keyword :: String -> Parser Token
