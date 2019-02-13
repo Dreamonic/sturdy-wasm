@@ -233,6 +233,14 @@ function = parens $ do
   instr  <- many parseInstruction
   return $ Func idstr params $ Block resultTypes instr
 
+
+-- TODO: currently only handles function definitions, not exports etc
+parseModule :: Parser WasmModule
+parseModule = parens $ do
+  keyword "module"
+  functions <- many function
+  return (WasmModule functions)
+
 runParser p tkns = case parse p tkns of
   [(res, [])]      -> res
   [(res, tkns)]    -> error "Not all tokens were consumed"
