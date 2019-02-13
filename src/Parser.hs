@@ -2,6 +2,12 @@ module Parser(
   WasmType(..)
   , Param(..)
   , Result(..)
+  , Instr(..)
+  , TypedInstr(..)
+  , Func(..)
+  , Block(..)
+  , parse
+  , function
 ) where
 
 import           Control.Applicative
