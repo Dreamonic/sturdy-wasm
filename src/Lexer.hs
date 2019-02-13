@@ -1,6 +1,7 @@
 module Lexer(
     Token (..)
     , tokenizeString
+    , tokenizeAll
 ) where
 
 import Data.Char (isDigit)
@@ -17,13 +18,61 @@ data Token
     | Reserved String
     deriving (Show, Eq)
 
+data Tokenizable a 
+    = CompleteToken a
+    | IncompleteToken a
+    deriving (Show, Eq)
+
+tokenizeAll :: String -> [Token]
+tokenizeAll str = reverse $ snd $ tokenizeStream str ("", [])
+
+tokenizeStream :: String -> (String, [Token]) -> (String, [Token])
+tokenizeStream str (mem, tokens) 
+    | str == [] = case mem of
+        [] -> ("", tokens)
+        _ -> ("", tokenizeString (trim mem) : tokens)
+    | head str == '(' || head str == ')' = case trim mem of
+        [] -> tokenizeStream (tail str) ("", tokenizeString [head str] : tokens)
+        _ -> tokenizeStream (tail str) ("",  tokenizeString [head str] : tokenize (findToken (head str) mem): tokens)
+    | isCompleteToken (findToken (head str) mem) = tokenizeStream (tail str) ("", tokenize (findToken (head str) mem) : tokens)
+    | otherwise = tokenizeStream (tail str) (tokenizableToString (findToken (head str) mem), tokens)
+
+tokenizableToString :: Tokenizable String -> String
+tokenizableToString (CompleteToken str) = str
+tokenizableToString (IncompleteToken str) = str
+
+isCompleteToken :: Tokenizable a -> Bool
+isCompleteToken (CompleteToken _) = True
+isCompleteToken (IncompleteToken _) = False
+
+findToken :: Char -> String -> Tokenizable String
+findToken char str 
+    | char == '(' || char == ')' = CompleteToken str
+    | char == ' ' && str /= "" = CompleteToken str
+    | otherwise = IncompleteToken $ str ++ [char]
+
+trim :: String -> String
+trim str 
+    | str == "" = ""
+    | last str  == ' ' = trim $ init str
+    | head str  == ' ' = trim $ tail str
+    | otherwise = str
+
+tokenizeCharStream :: String -> [Token] -> [Token]
+tokenizeCharStream str tokens = tokenizeString str : tokens
+
+tokenize :: Tokenizable String -> Token
+tokenize (CompleteToken str) = case str of
+    "(" -> LP
+    ")" -> RP
+    _ -> tokenizeStringHelper str
+
 tokenizeString :: String -> Token
 tokenizeString str = case str of
     "(" -> LP
     ")" -> RP
     _ -> tokenizeStringHelper str
-
-
+    
 tokenizeStringHelper :: String -> Token
 tokenizeStringHelper str
     | head str == '$' = ID $ drop 1 str
