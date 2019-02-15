@@ -1,3 +1,4 @@
+-- | This module takes a text input and transforms it into a few different tokens.
 module Lexer(
     Token (..)
     , tokenizeString
@@ -6,16 +7,17 @@ module Lexer(
 
 import Data.Char (isDigit)
 
+-- | All possible tokens, based upon the syntax format of Web Assembly.
 data Token
-    = Keyword String
-    | UnsignedN Integer
-    | SignedN Integer
-    | FloatN Double
-    | Str String
-    | ID String
-    | LP
-    | RP
-    | Reserved String
+    = Keyword String        -- ^ A keyword indicating a function or system call.
+    | UnsignedN Integer     -- ^ An unsigned integer.
+    | SignedN Integer       -- ^ A signed integer.
+    | FloatN Double         -- ^ A float.
+    | Str String            -- ^ A string.
+    | ID String             -- ^ An ID, indicating a certain value.
+    | LP                    -- ^ A left parenthesis.
+    | RP                    -- ^ A right parenthesis.
+    | Reserved String       -- ^ Any value not defined.
     deriving (Show, Eq)
 
 data Tokenizable a 
@@ -23,8 +25,16 @@ data Tokenizable a
     | IncompleteToken a
     deriving (Show, Eq)
 
+-- | Create a list of tokens, from a string containing multiple tokens.
 tokenizeAll :: String -> [Token]
 tokenizeAll str = reverse $ snd $ tokenizeStream str ("", [])
+
+-- | Tokenize a single token, contained within a string.
+tokenizeString :: String -> Token
+tokenizeString str = case str of
+    "(" -> LP
+    ")" -> RP
+    _ -> tokenizeStringHelper str
 
 tokenizeStream :: String -> (String, [Token]) -> (String, [Token])
 tokenizeStream str (mem, tokens) 
@@ -63,12 +73,6 @@ tokenizeCharStream str tokens = tokenizeString str : tokens
 
 tokenize :: Tokenizable String -> Token
 tokenize (CompleteToken str) = case str of
-    "(" -> LP
-    ")" -> RP
-    _ -> tokenizeStringHelper str
-
-tokenizeString :: String -> Token
-tokenizeString str = case str of
     "(" -> LP
     ")" -> RP
     _ -> tokenizeStringHelper str
