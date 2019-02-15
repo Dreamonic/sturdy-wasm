@@ -2,10 +2,15 @@ module Lib
     ( someFunc
     ) where
 
-import Lexer
-import System.Environment
-import Data.List
-import System.IO
+import              Lexer
+import              System.Environment
+import              Data.List
+import qualified    Data.Text as T (strip, pack, unpack)
+import              System.IO
+
+-- |Cleans up WAST
+cleanInput :: String -> String
+cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pack) (lines str)))
 
 -- |Executes interactive mode if no argument is given
 -- if a single argument is given, read file and execute
@@ -25,7 +30,7 @@ interactive = do
 execute :: String -> IO ()
 execute filename = do
     contents <- readFile filename
-    print $ filter (/= '\n') contents -- TODO: clean up input string
+    print $ tokenizeAll $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
 someFunc = parseArgs =<< getArgs
