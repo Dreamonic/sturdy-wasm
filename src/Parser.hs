@@ -10,8 +10,6 @@ module Parser(
   , Result(..)
   , SignedNess(..)
   , ofType
-  , toWasmI
-  , toWasmF
   , parse
   , function
 ) where
@@ -202,7 +200,23 @@ int = do
   extractInt tkn
 -- wrapWasmVal :: Num a -> WasmVal a
 
-parseInstruction = parseGetLocal <|> parseNumericInstr
+-- Parse a function body consisting of a mix of plain and foldedinstructions
+parseBody :: Parser [Instr]
+parseBody = do
+  instructions <- parseFolded <|> many parseInstruction
+  if instructions == mzero then return mzero else do
+    rest <- parseBody <|> return []
+    return $ instructions ++ rest
+
+parseInstruction = parseGetLocal <|> parseNumericInstr <|> parens parseInstruction
+
+-- Parse instructions that are folded into an S-expression
+parseFolded :: Parser [Instr]
+parseFolded = parens $ do
+  instruction <- parseInstruction
+  operands <- many parseFolded
+  return $ concat operands ++ [instruction]
+
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
@@ -244,6 +258,7 @@ makeII "rem_u" t = return $ Rem t Unsigned
 makeII "and" t   = return $ And t
 makeII "or"  t   = return $ Or t
 makeII "xor" t   = return $ Xor t
+makeII str   t   = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
 -- makeFloatInstruction
 makeFI :: String -> WasmType -> Parser TypedInstr
@@ -253,6 +268,7 @@ makeFI "mul" t = return $ Mul t
 makeFI "div" t = return $ Div t Signed
 makeFI "abs" t = return $ Abs t
 makeFI "neg" t = return $ Neg t
+makeFI str   t = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
 isToken :: Token -> Token -> Bool
 isToken tkn = (== tkn)
@@ -314,7 +330,7 @@ function = parens $ do
   idstr <- idStr
   params <- many param
   resultTypes <- many parseResultType
-  instr  <- many parseInstruction
+  instr  <- parseBody
   return $ Func idstr params $ Block resultTypes instr
 
 

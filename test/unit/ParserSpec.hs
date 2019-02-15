@@ -12,6 +12,7 @@ spec = do
     tsOfType
     tsToWasmI
     tsToWasmF
+    tsParse
     
 -- Linking tests to Test Suites --
 
@@ -38,6 +39,9 @@ tsToWasmF = describe "toWasmF" $ do
     testToWasmF32
     testToWasmF64
 
+tsParse :: Spec
+tsParse = describe "parse" $ do
+    testParse
 
 -- Tests --
 

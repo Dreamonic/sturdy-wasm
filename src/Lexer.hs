@@ -6,6 +6,7 @@ module Lexer(
 ) where
 
 import Data.Char (isDigit)
+import Text.Regex.Posix
 
 -- | All possible tokens, based upon the syntax format of Web Assembly.
 data Token
@@ -65,15 +66,16 @@ isCompleteToken (IncompleteToken _) = False
 findToken :: Char -> String -> Tokenizable String
 findToken char str 
     | char == '(' || char == ')' = CompleteToken str
-    | char == ' ' && str /= "" = CompleteToken str
+    | [char] =~ "\\s" && str /= "" = CompleteToken str
+    | [char] =~ "\\s" && str == "" = IncompleteToken str
     | otherwise = IncompleteToken $ str ++ [char]
 
 -- | Trim whitespaces from the strings that will be tokenized
 trim :: String -> String
 trim str 
     | str == "" = ""
-    | last str  == ' ' = trim $ init str
-    | head str  == ' ' = trim $ tail str
+    | [last str]  =~ "\\s" = trim $ init str
+    | [head str]  =~ "\\s" = trim $ tail str
     | otherwise = str
 
 -- | Tokenize a stream of characters.

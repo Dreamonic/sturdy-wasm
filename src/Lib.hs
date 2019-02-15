@@ -2,34 +2,35 @@ module Lib
     ( someFunc
     ) where
 
-import Lexer
-import Parser
-import Executor
+import              Lexer
+import              System.Environment
+import              Data.List
+import qualified    Data.Text as T (strip, pack, unpack)
+import              System.IO
+
+-- |Cleans up WAST
+cleanInput :: String -> String
+cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pack) (lines str)))
+
+-- |Executes interactive mode if no argument is given
+-- if a single argument is given, read file and execute
+parseArgs :: [String] -> IO ()
+parseArgs []        = interactive
+parseArgs (arg:[])  = execute arg
+parseArgs args      = putStrLn $ "Invalid Options: " ++ intercalate " " args
+
+-- |Reads WAST user input and executes it
+interactive :: IO ()
+interactive = do 
+    putStrLn "Character: "
+    input <- getLine
+    print $ tokenizeAll input
+
+-- |Reads a file and executes 
+execute :: String -> IO ()
+execute filename = do
+    contents <- readFile filename
+    print $ tokenizeAll $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
-someFunc = do
-  print (show $ execFunc foo [I32Val 8, I32Val 2, I32Val 5, I32Val 7])
-  print (show $ execFunc addThree [F32Val 2.2, F32Val 6.7, F32Val 13.21])
---    putStrLn "Character: "
---    input <- getLine
---    print (tokenizeString input)
-
-foo = Func "foo" [Param "a" I32, Param "b" I32, Param "c" I32,
-  Param "d" I32] (Block [Result I32] [
-    LocalGet "a",
-    LocalGet "b",
-    Numeric (Div I32 Signed),
-    LocalGet "c",
-    LocalGet "d",
-    Numeric (Mul I32),
-    Numeric (Sub I32)
-    ])
-
-addThree = Func "addThree" [Param "a" F32, Param "b" F32, Param "c" F32]
-  (Block [Result F32] [
-    LocalGet "a",
-    LocalGet "b",
-    Numeric (Add F32),
-    LocalGet "c",
-    Numeric (Add F32)
-    ])
+someFunc = parseArgs =<< getArgs
