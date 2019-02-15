@@ -36,6 +36,9 @@ tokenizeString str = case str of
     ")" -> RP
     _ -> tokenizeStringHelper str
 
+-- Helper functions -- 
+
+-- | Tokenizes a stream of tokens [Note: Can be improved].
 tokenizeStream :: String -> (String, [Token]) -> (String, [Token])
 tokenizeStream str (mem, tokens) 
     | str == [] = case mem of
@@ -47,20 +50,25 @@ tokenizeStream str (mem, tokens)
     | isCompleteToken (findToken (head str) mem) = tokenizeStream (tail str) ("", tokenize (findToken (head str) mem) : tokens)
     | otherwise = tokenizeStream (tail str) (tokenizableToString (findToken (head str) mem), tokens)
 
+-- | Casts a token to a string.
 tokenizableToString :: Tokenizable String -> String
 tokenizableToString (CompleteToken str) = str
 tokenizableToString (IncompleteToken str) = str
 
+-- | Check if a tokenizable is complete, or is still missing some information.
 isCompleteToken :: Tokenizable a -> Bool
 isCompleteToken (CompleteToken _) = True
 isCompleteToken (IncompleteToken _) = False
 
+
+-- | Find out if the character will complete the token.
 findToken :: Char -> String -> Tokenizable String
 findToken char str 
     | char == '(' || char == ')' = CompleteToken str
     | char == ' ' && str /= "" = CompleteToken str
     | otherwise = IncompleteToken $ str ++ [char]
 
+-- | Trim whitespaces from the strings that will be tokenized
 trim :: String -> String
 trim str 
     | str == "" = ""
@@ -68,6 +76,7 @@ trim str
     | head str  == ' ' = trim $ tail str
     | otherwise = str
 
+-- | Tokenize a stream of characters.
 tokenizeCharStream :: String -> [Token] -> [Token]
 tokenizeCharStream str tokens = tokenizeString str : tokens
 
