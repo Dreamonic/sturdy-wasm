@@ -49,8 +49,8 @@ isCompleteToken (IncompleteToken _) = False
 findToken :: Char -> String -> Tokenizable String
 findToken char str 
     | char == '(' || char == ')' = CompleteToken str
-    | char == ' ' && str /= "" = CompleteToken str
-    | char == ' ' && str == "" = IncompleteToken str
+    | [char] =~ "\\s" && str /= "" = CompleteToken str
+    | [char] =~ "\\s" && str == "" = IncompleteToken str
     | otherwise = IncompleteToken $ str ++ [char]
 
 trim :: String -> String

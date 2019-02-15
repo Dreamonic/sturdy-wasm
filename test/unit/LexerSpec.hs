@@ -18,7 +18,7 @@ spec = do
             tokenizeAll "(module (memory 1) (func))" `shouldBe`
             [LP, Keyword "module", LP, Keyword "memory", UnsignedN 1, RP, LP, Keyword "func", RP, RP]
         it "Lexing a function" $
-            tokenizeAll "(func (param i32) (param f32) (local f64) get_local 0 get_local 1 get_local 2)" `shouldBe`
+            tokenizeAll "(func (param i32) (param f32) (local f64)\nget_local 0\nget_local 1\nget_local 2)" `shouldBe`
             [LP, Keyword "func", LP, Keyword "param", Keyword "i32", RP, LP, Keyword "param", Keyword "f32",RP,LP,Keyword "local",Keyword "f64",RP,Keyword "get_local",UnsignedN 0, Keyword "get_local",UnsignedN 1, Keyword "get_local",UnsignedN 2,RP]
 
 genKeyword :: Gen String
