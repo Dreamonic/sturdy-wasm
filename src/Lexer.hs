@@ -9,7 +9,7 @@ data Token
     = Keyword String
     | UnsignedN Integer
     | SignedN Integer
-    | FloatN Float
+    | FloatN Double
     | Str String
     | ID String
     | LP
@@ -37,7 +37,7 @@ tokenizeNumber str = case dropWhile isDigit str of
     '-':decimals -> case dropWhile isDigit decimals of
         "" -> SignedN (read str :: Integer)
     '.':decimals -> case dropWhile isDigit decimals of
-        "" -> FloatN (read str :: Float)
+        "" -> FloatN (read str :: Double)
     _ -> Reserved str
 
 checkKeyword :: String -> Bool
