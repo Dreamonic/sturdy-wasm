@@ -10,6 +10,8 @@ module Parser(
   , Result(..)
   , SignedNess(..)
   , ofType
+  , toWasmI
+  , toWasmF
   , parse
   , function
 ) where
