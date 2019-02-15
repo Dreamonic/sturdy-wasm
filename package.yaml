@@ -24,6 +24,8 @@ dependencies:
 
 library:
   source-dirs: src
+  dependencies:
+    - containers
 
 executables:
   sturdy-wasm-exe:
@@ -37,12 +39,28 @@ executables:
     - sturdy-wasm
 
 tests:
-  sturdy-wasm-test:
+  unit-tests:
     main:                Spec.hs
-    source-dirs:         test
+    source-dirs:         test/unit
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
     - sturdy-wasm
+    - hspec
+    - hspec-discover
+    - QuickCheck
+
+  integration-tests:
+    main:                Spec.hs
+    source-dirs:         test/integration
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - sturdy-wasm
+    - hspec
+    - hspec-discover
+    - QuickCheck
