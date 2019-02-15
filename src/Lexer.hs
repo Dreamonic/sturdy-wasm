@@ -5,6 +5,7 @@ module Lexer(
 ) where
 
 import Data.Char (isDigit)
+import Text.Regex.Posix
 
 data Token
     = Keyword String
@@ -49,13 +50,14 @@ findToken :: Char -> String -> Tokenizable String
 findToken char str 
     | char == '(' || char == ')' = CompleteToken str
     | char == ' ' && str /= "" = CompleteToken str
+    | char == ' ' && str == "" = IncompleteToken str
     | otherwise = IncompleteToken $ str ++ [char]
 
 trim :: String -> String
 trim str 
     | str == "" = ""
-    | last str  == ' ' = trim $ init str
-    | head str  == ' ' = trim $ tail str
+    | [last str]  =~ "\\s" = trim $ init str
+    | [head str]  =~ "\\s" = trim $ tail str
     | otherwise = str
 
 tokenizeCharStream :: String -> [Token] -> [Token]
