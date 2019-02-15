@@ -13,6 +13,8 @@ module Parser(
   , toWasmI
   , toWasmF
   , parse
+  , toWasmI
+  , toWasmF
   , function
 ) where
 
