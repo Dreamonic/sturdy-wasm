@@ -11,6 +11,8 @@ module Parser(
   , SignedNess(..)
   , ofType
   , parse
+  , toWasmI
+  , toWasmF
   , function
 ) where
 
