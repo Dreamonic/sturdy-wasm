@@ -27,6 +27,8 @@ tsTokenizeString = describe "tokenizeString" $ do
     testTokenizeStringRP
     testTokenizeStringNumberWithChar
     testTokenizeStringNumberEndingStr
+    testTokenizeStringInvalidKeywordLB
+    testTokenizeStringInvalidKeywordRB
 
 tsTokenizeAll :: Spec
 tsTokenizeAll = describe "tokenizeString" $ do
@@ -65,9 +67,17 @@ testTokenizeStringRP = it "Tokenize a right paranthesis" $
 testTokenizeStringNumberWithChar = it "A number cannot have a char in the middle" $
     property $ \(x, y, z) -> tokenizeString (show (x::Integer) ++ (y::Char) : show (z::Integer)) `shouldBe` Reserved (show x ++ y : show z)
 
-testTokenizeStringNumberEndingStr= it "A number cannot have a string appended" $
+testTokenizeStringNumberEndingStr = it "A number cannot have a string appended" $
     forAll arbitrary $ \x -> forAll genNonEmptyString $ \y -> tokenizeString (show (x::Integer) ++ (y::String)) `shouldBe` Reserved (show x ++ y)
---- tokenizeAll ---
+
+testTokenizeStringInvalidKeywordLB = it "A keyword cannot contain '{'" $
+    property $ \(SafeKeyword x, y) -> tokenizeString (x ++ '{' : y::String) `shouldBe` Reserved (x ++ '{' : y)
+
+testTokenizeStringInvalidKeywordRB = it "A keyword cannot contain '}'" $
+    property $ \(SafeKeyword x, y) -> tokenizeString (x ++ '}' : y::String) `shouldBe` Reserved (x ++ '}' : y)
+
+
+    --- tokenizeAll ---
 
 tsTokenizeAllModule = it "Lexing a module" $
     tokenizeAll "(module (memory 1) (func))" `shouldBe`
