@@ -18,7 +18,7 @@ module Parser(
 
 import           Control.Applicative
 import           Control.Monad
-
+import           Tokens
 import           Lexer
 
 import Data.List

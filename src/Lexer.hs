@@ -1,11 +1,11 @@
 -- | This module takes a text input and transforms it into a few different tokens.
 module Lexer(
-    tokenizeString
-    , tokenizeAll
+    tokenizeS
+    , tokenize
 ) where
 
 import Data.Char (isDigit)
-import Text.Regex.Posix
+import Text.Regex.PCRE
 import Tokens
 
 
@@ -15,28 +15,28 @@ data Tokenizable a
     deriving (Show, Eq)
 
 -- | Create a list of tokens, from a string containing multiple tokens.
-tokenizeAll :: String -> [Token]
-tokenizeAll str = reverse $ snd $ tokenizeStream str ("", [])
+tokenize :: String -> [Token]
+tokenize str = reverse $ snd $ tokenizeStream str ("", [])
 
--- | Tokenize a single token, contained within a string.
-tokenizeString :: String -> Token
-tokenizeString str = case str of
+-- | tokenizeSyma single token, contained within a string.
+tokenizeS :: String -> Token
+tokenizeS str = case str of
     "(" -> LP
     ")" -> RP
     _ -> tokenizeStringHelper str
 
 -- Helper functions -- 
 
--- | Tokenizes a stream of tokens [Note: Can be improved].
+-- | tokenizeSyma stream of tokens [Note: Can be improved].
 tokenizeStream :: String -> (String, [Token]) -> (String, [Token])
 tokenizeStream str (mem, tokens) 
     | str == [] = case mem of
         [] -> ("", tokens)
-        _ -> ("", tokenizeString (trim mem) : tokens)
+        _ -> ("", tokenizeS (trim mem) : tokens)
     | head str == '(' || head str == ')' = case trim mem of
-        [] -> tokenizeStream (tail str) ("", tokenizeString [head str] : tokens)
-        _ -> tokenizeStream (tail str) ("",  tokenizeString [head str] : tokenize (findToken (head str) mem): tokens)
-    | isCompleteToken (findToken (head str) mem) = tokenizeStream (tail str) ("", tokenize (findToken (head str) mem) : tokens)
+        [] -> tokenizeStream (tail str) ("", tokenizeS [head str] : tokens)
+        _ -> tokenizeStream (tail str) ("",  tokenizeS [head str] : tokenizeSym(findToken (head str) mem): tokens)
+    | isCompleteToken (findToken (head str) mem) = tokenizeStream (tail str) ("", tokenizeSym(findToken (head str) mem) : tokens)
     | otherwise = tokenizeStream (tail str) (tokenizableToString (findToken (head str) mem), tokens)
 
 -- | Casts a token to a string.
@@ -66,12 +66,12 @@ trim str
     | [head str]  =~ "\\s" = trim $ tail str
     | otherwise = str
 
--- | Tokenize a stream of characters.
+-- | tokenize a stream of characters.
 tokenizeCharStream :: String -> [Token] -> [Token]
-tokenizeCharStream str tokens = tokenizeString str : tokens
+tokenizeCharStream str tokens = tokenizeS str : tokens
 
-tokenize :: Tokenizable String -> Token
-tokenize (CompleteToken str) = case str of
+tokenizeSym:: Tokenizable String -> Token
+tokenizeSym(CompleteToken str) = case str of
     "(" -> LP
     ")" -> RP
     _ -> tokenizeStringHelper str

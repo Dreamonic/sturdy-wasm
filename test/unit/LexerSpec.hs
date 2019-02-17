@@ -3,86 +3,87 @@ module LexerSpec (spec) where
 import Test.QuickCheck
 import Test.Hspec
 import Generators
-import Lexer
+import Tokens
+import LexerRegex
 
 -- Test suites --
 
 spec :: Spec
 spec = do 
-    tsTokenizeString
-    tsTokenizeAll
+    tstokenizeS
+    tsTokenize
 
 
 -- Linking tests to Test Suites --
 
-tsTokenizeString :: Spec
-tsTokenizeString = describe "tokenizeString" $ do
-    testTokenizeStringKeyword
-    testTokenizeStringUnsignedN
-    testTokenizeStringSignedN
-    testTokenizeStringFloatN
-    testTokenizeStringStr
-    testTokenizeStringID
-    testTokenizeStringLP
-    testTokenizeStringRP
-    testTokenizeStringNumberWithChar
-    testTokenizeStringNumberEndingStr
-    testTokenizeStringInvalidKeywordLB
-    testTokenizeStringInvalidKeywordRB
+tstokenizeS :: Spec
+tstokenizeS = describe "tokenizeS" $ do
+    testtokenizeSKeyword
+    testtokenizeSUnsignedN
+    testtokenizeSSignedN
+    testtokenizeSFloatN
+    testtokenizeSStr
+    testtokenizeSID
+    testtokenizeSLP
+    testtokenizeSRP
+    testtokenizeSNumberWithChar
+    testtokenizeSNumberEndingStr
+    testtokenizeSInvalidKeywordLB
+    testtokenizeSInvalidKeywordRB
 
-tsTokenizeAll :: Spec
-tsTokenizeAll = describe "tokenizeString" $ do
+tsTokenize :: Spec
+tsTokenize = describe "tokenize" $ do
     tsTokenizeAllModule
     tsTokenizeAllFunction
 
 
 -- Tests --
 
---- tokenizeString ---
+--- tokenizeS ---
 
-testTokenizeStringStr = it "A value encapsulated in \"\" should be a Str" $ 
-    property $ \x -> tokenizeString ("\"" ++ (x::String) ++ "\"") `shouldBe` Str x
+testtokenizeSStr = it "A value encapsulated in \"\" should be a Str" $ 
+    property $ \x -> tokenizeS ("\"" ++ (x::String) ++ "\"") `shouldBe` Str x
 
-testTokenizeStringID = it "A value starting with $ should be an ID" $ 
-    property $ \x -> tokenizeString ('$':(x::String)) `shouldBe` ID x
+testtokenizeSID = it "A value starting with $ should be an ID" $ 
+    forAll genKeyword $ \x -> tokenizeS ('$':x) `shouldBe` ID x
 
-testTokenizeStringKeyword = it "A value starting with a-z should be a Keyword" $
-    property $ \(SafeKeyword str) -> tokenizeString str `shouldBe` Keyword str
+testtokenizeSKeyword = it "A value starting with a-z should be a Keyword" $
+    property $ \(SafeKeyword str) -> tokenizeS str `shouldBe` Keyword str
 
-testTokenizeStringUnsignedN = it "A value existing of only [0-9] should be an UnsignedN" $
-    forAll genNonNeg $ \x -> tokenizeString (show (x::Integer)) `shouldBe` UnsignedN x
+testtokenizeSUnsignedN = it "A value existing of only [0-9] should be an UnsignedN" $
+    forAll genNonNeg $ \x -> tokenizeS (show (x::Integer)) `shouldBe` UnsignedN x
 
-testTokenizeStringSignedN = it "A value starting with a - followed by only [0-9] values should be a SignedN" $
-    forAll genNegative $ \x -> tokenizeString (show (x::Integer)) `shouldBe` SignedN x
+testtokenizeSSignedN = it "A value starting with a - followed by only [0-9] values should be a SignedN" $
+    forAll genNegative $ \x -> tokenizeS (show (x::Integer)) `shouldBe` SignedN x
 
-testTokenizeStringFloatN = it "A float value should be a FloatN" $
-    property $ \x -> tokenizeString (show (x::Double)) `shouldBe` FloatN x
+testtokenizeSFloatN = it "A float value should be a FloatN" $
+    property $ \x -> forAll genNonNeg $ \y -> tokenizeS (show (x::Integer) ++ '.' : show y) `shouldBe` FloatN (read (show x ++ '.' : show y))
 
-testTokenizeStringLP = it "Tokenize a left paranthesis" $
-    tokenizeString "(" `shouldBe` LP
+testtokenizeSLP = it "Tokenize a left paranthesis" $
+    tokenizeS "(" `shouldBe` LP
 
-testTokenizeStringRP = it "Tokenize a right paranthesis" $
-    tokenizeString ")" `shouldBe` RP
+testtokenizeSRP = it "Tokenize a right paranthesis" $
+    tokenizeS ")" `shouldBe` RP
 
-testTokenizeStringNumberWithChar = it "A number cannot have a char in the middle" $
-    property $ \(x, y, z) -> tokenizeString (show (x::Integer) ++ (y::Char) : show (z::Integer)) `shouldBe` Reserved (show x ++ y : show z)
+testtokenizeSNumberWithChar = it "A number cannot have a char in the middle" $
+    property $ \(x, z) -> forAll genChar $ \y -> tokenizeS (show (x::Integer) ++ (y::Char) : show (z::Integer)) `shouldBe` Reserved (show x ++ y : show z)
 
-testTokenizeStringNumberEndingStr = it "A number cannot have a string appended" $
-    forAll arbitrary $ \x -> forAll genNonEmptyString $ \y -> tokenizeString (show (x::Integer) ++ (y::String)) `shouldBe` Reserved (show x ++ y)
+testtokenizeSNumberEndingStr = it "A number cannot have a char appended" $
+    forAll arbitrary $ \x -> forAll genChar $ \y -> tokenizeS (show (x::Integer) ++ [y]) `shouldBe` Reserved (show x ++ [y])
 
-testTokenizeStringInvalidKeywordLB = it "A keyword cannot contain '{'" $
-    property $ \(SafeKeyword x, y) -> tokenizeString (x ++ '{' : y::String) `shouldBe` Reserved (x ++ '{' : y)
+testtokenizeSInvalidKeywordLB = it "A keyword cannot contain '{'" $
+    property $ \(SafeKeyword x, y) -> tokenizeS (x ++ '{' : y::String) `shouldBe` Reserved (x ++ '{' : y)
 
-testTokenizeStringInvalidKeywordRB = it "A keyword cannot contain '}'" $
-    property $ \(SafeKeyword x, y) -> tokenizeString (x ++ '}' : y::String) `shouldBe` Reserved (x ++ '}' : y)
+testtokenizeSInvalidKeywordRB = it "A keyword cannot contain '}'" $
+    property $ \(SafeKeyword x, y) -> tokenizeS (x ++ '}' : y::String) `shouldBe` Reserved (x ++ '}' : y)
 
 
-    --- tokenizeAll ---
+    --- tokenize ---
 
 tsTokenizeAllModule = it "Lexing a module" $
-    tokenizeAll "(module (memory 1) (func))" `shouldBe`
+    tokenize "(module (memory 1) (func))" `shouldBe`
     [LP, Keyword "module", LP, Keyword "memory", UnsignedN 1, RP, LP, Keyword "func", RP, RP]
 
 tsTokenizeAllFunction = it "Lexing a function" $
-    tokenizeAll "(func (param i32) (param f32) (local f64)\nget_local 0\nget_local 1\nget_local 2)" `shouldBe`
+    tokenize "(func (param i32) (param f32) (local f64)\nget_local 0\nget_local 1\nget_local 2)" `shouldBe`
     [LP, Keyword "func", LP, Keyword "param", Keyword "i32", RP, LP, Keyword "param", Keyword "f32",RP,LP,Keyword "local",Keyword "f64",RP,Keyword "get_local",UnsignedN 0, Keyword "get_local",UnsignedN 1, Keyword "get_local",UnsignedN 2,RP]

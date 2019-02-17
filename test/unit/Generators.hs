@@ -5,6 +5,7 @@ module Generators (
     , genNonNeg
     , genNegative
     , genNonEmptyString
+    , genChar
 ) where
 
 import Test.QuickCheck
@@ -39,3 +40,7 @@ genNegative = arbitrary `suchThat` (< 0)
 -- | Generate a non empty String.
 genNonEmptyString :: Gen String
 genNonEmptyString = arbitrary `suchThat` (/= "")
+
+-- | Generate a word character
+genChar :: Gen Char
+genChar = choose ('a', 'z')
