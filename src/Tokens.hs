@@ -4,7 +4,7 @@ module Tokens(
     , idcharRegex
 ) where
 
--- | All possible tokens, based upon the syntax format of Web Assembly.
+-- |    All possible tokens, based upon the syntax format of Web Assembly.
 data Token
     = Keyword String        -- ^ A keyword indicating a function or system call.
     | UnsignedN Integer     -- ^ An unsigned integer.
@@ -17,6 +17,8 @@ data Token
     | Reserved String       -- ^ Any value not defined.
     deriving (Show, Eq)
 
+
+-- |    This is a list of each possible idchar.
 idchar :: String
 idchar = ['0'..'9'] 
     ++ ['a'..'z'] 
@@ -24,11 +26,15 @@ idchar = ['0'..'9']
     ++ ['!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '/']
     ++ [':', '<', '=', '>', '?', '@', '\\', '^', '_', '`', '|', '~']
 
+-- |    Represents a string, containing every possible idchar,
+--      with certain characters escaped.
 idcharRegex :: String
 idcharRegex = "[0-9a-zA-Z!<=>\\?#\\$%&\'\\*\\+-\\./:<=>\\?@\\\\\\^_`\\|~]"
 
+-- |    Unused, but utility function to check whether a char is an idchar.
 isIDChar :: Char -> Bool
 isIDChar c = c `elem` idchar
 
+-- |    Unused, but represents seperator symbols.
 seperatorSymbols :: String
 seperatorSymbols = "\\s"
