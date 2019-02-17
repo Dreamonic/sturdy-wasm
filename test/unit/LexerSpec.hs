@@ -25,6 +25,8 @@ tsTokenizeString = describe "tokenizeString" $ do
     testTokenizeStringID
     testTokenizeStringLP
     testTokenizeStringRP
+    testTokenizeStringNumberWithChar
+    testTokenizeStringNumberEndingStr
 
 tsTokenizeAll :: Spec
 tsTokenizeAll = describe "tokenizeString" $ do
@@ -60,7 +62,11 @@ testTokenizeStringLP = it "Tokenize a left paranthesis" $
 testTokenizeStringRP = it "Tokenize a right paranthesis" $
     tokenizeString ")" `shouldBe` RP
 
+testTokenizeStringNumberWithChar = it "A number cannot have a char in the middle" $
+    property $ \(x, y, z) -> tokenizeString (show (x::Integer) ++ (y::Char) : show (z::Integer)) `shouldBe` Reserved (show x ++ y : show z)
 
+testTokenizeStringNumberEndingStr= it "A number cannot have a string appended" $
+    forAll arbitrary $ \x -> forAll genNonEmptyString $ \y -> tokenizeString (show (x::Integer) ++ (y::String)) `shouldBe` Reserved (show x ++ y)
 --- tokenizeAll ---
 
 tsTokenizeAllModule = it "Lexing a module" $

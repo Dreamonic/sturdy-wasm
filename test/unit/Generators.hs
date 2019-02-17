@@ -4,6 +4,7 @@ module Generators (
     , genNonZero
     , genNonNeg
     , genNegative
+    , genNonEmptyString
 ) where
 
 import Test.QuickCheck
@@ -34,3 +35,7 @@ genNonNeg = arbitrary `suchThat` (>= 0)
 -- | Generate negative integers.
 genNegative :: Gen Integer
 genNegative = arbitrary `suchThat` (< 0)
+
+-- | Generate a non empty String.
+genNonEmptyString :: Gen String
+genNonEmptyString = arbitrary `suchThat` (/= "")
