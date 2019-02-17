@@ -1,4 +1,4 @@
-# sturdy-wasm
+# sturdy-wasm [![Build Status](https://travis-ci.org/Dreamonic/sturdy-wasm.png?branch=master)](https://travis-ci.org/Dreamonic/sturdyWasm)
 A continuation of [sturdy](https://github.com/svenkeidel/sturdy) by Sven Keidel from the TU Delft, the Netherlands. 
 
 ## How to setup the project locally
