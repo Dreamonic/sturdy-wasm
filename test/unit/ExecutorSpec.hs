@@ -2,6 +2,7 @@ module ExecutorSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
+import Generators
 import Parser
 import Executor
 import Control.Exception.Base
@@ -83,9 +84,3 @@ testExecDivision = it "Test division with 2 values" $
 
 --testExecDivByZero = it "Test division by 0" $
 --   property $ \x -> execFunc division [I32Val (x::Integer), I32Val 0] `shouldThrow` DivideByZero
-
--- Generators --
-
--- Generates a random Keyword following specification.
-genNonZero :: Gen Integer
-genNonZero = arbitrary `suchThat` (/= 0)
