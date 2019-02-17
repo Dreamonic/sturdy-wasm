@@ -24,6 +24,17 @@ tokenizeList list = case list of
     _ -> []
 
 -- |    Tokenize a single element.
+--
+--      The following elements are possible
+--          - "(": Left Parenthesis
+--          - ")": Right Parenthesis
+--          - "$id" : An ID, which always starts with a '$'
+--          - ""string"": A string, which is surrounded with '"'
+--          - "keyword": A keyword, which always starts with a lower case symbol
+--          - "42": An unsigned number, every number without sign is parsed as such
+--          - "-42": A signed number, every number with sign is parsed as such
+--          - "42.0": A float, every number containing a '.' is parsed as such
+--          - otherwise: It is a reserved symbol, which is not really known otherwise
 tokenizeS :: String -> Token
 tokenizeS token 
     | token == "(" = LP
