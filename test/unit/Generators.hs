@@ -5,11 +5,14 @@ module Generators (
     , genNonNeg
     , genNegative
     , genNonEmptyString
+    , genIDChar
+    , genIDString
     , genChar
 ) where
 
 import Test.QuickCheck
 import Test.Hspec
+import Tokens
 -- Generators --
 
 -- | Generates a random Keyword following specification.
@@ -40,6 +43,14 @@ genNegative = arbitrary `suchThat` (< 0)
 -- | Generate a non empty String.
 genNonEmptyString :: Gen String
 genNonEmptyString = arbitrary `suchThat` (/= "")
+
+-- | Generate a random idchar.
+genIDChar :: Gen Char
+genIDChar = elements idchar
+
+-- | Generate a random string of idchars.
+genIDString :: Gen String
+genIDString = listOf genIDChar
 
 -- | Generate a word character
 genChar :: Gen Char

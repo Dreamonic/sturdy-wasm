@@ -72,10 +72,10 @@ testtokenizeSNumberEndingStr = it "A number cannot have a char appended" $
     forAll arbitrary $ \x -> forAll genChar $ \y -> tokenizeS (show (x::Integer) ++ [y]) `shouldBe` Reserved (show x ++ [y])
 
 testtokenizeSInvalidKeywordLB = it "A keyword cannot contain '{'" $
-    property $ \(SafeKeyword x, y) -> tokenizeS (x ++ '{' : y::String) `shouldBe` Reserved (x ++ '{' : y)
+    property $ \(SafeKeyword x) -> forAll genIDString $ \y -> tokenizeS (x ++ '{' : y::String) `shouldBe` Reserved (x ++ '{' : y)
 
 testtokenizeSInvalidKeywordRB = it "A keyword cannot contain '}'" $
-    property $ \(SafeKeyword x, y) -> tokenizeS (x ++ '}' : y::String) `shouldBe` Reserved (x ++ '}' : y)
+    property $ \(SafeKeyword x) -> forAll genIDString $ \y -> tokenizeS (x ++ '}' : y::String) `shouldBe` Reserved (x ++ '}' : y)
 
 
     --- tokenize ---
