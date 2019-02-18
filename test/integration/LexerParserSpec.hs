@@ -26,5 +26,5 @@ programAdd = "(func $add (param $a i32) (param $b i32) \n\
                 \i32.add)"
 
 testSimpleAddition = it "Parse a function which does addition" $
-    parse Parser.function (tokenizeAll programAdd) `shouldBe` 
+    parse Parser.function (tokenize programAdd) `shouldBe` 
     [(Func "add" [Param "a" I32,Param "b" I32] (Block [Result I32] [LocalGet "a",LocalGet "b",Numeric (Add I32)]),[])]

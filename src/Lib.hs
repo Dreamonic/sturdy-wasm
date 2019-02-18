@@ -24,13 +24,13 @@ interactive :: IO ()
 interactive = do 
     putStrLn "Character: "
     input <- getLine
-    print $ tokenizeAll input
+    print $ tokenize input
 
 -- |Reads a file and executes 
 execute :: String -> IO ()
 execute filename = do
     contents <- readFile filename
-    print $ tokenizeAll $ cleanInput contents -- TODO: clean up input string
+    print $ tokenize $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
 someFunc = parseArgs =<< getArgs

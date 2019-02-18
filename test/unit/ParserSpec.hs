@@ -2,6 +2,7 @@ module ParserSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
+import Tokens
 import Parser
 import Lexer
 
