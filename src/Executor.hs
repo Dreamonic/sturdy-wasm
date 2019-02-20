@@ -28,12 +28,12 @@ executorCatch handler x = E.catch (E.evaluate x) handler
 --  definition a TypeError is thrown. ExecutorExceptions are also thrown if
 --  instructions in the function are not supported or lead to run-time errors.
 execFunc :: Func -> [WasmVal] -> [WasmVal]
-execFunc (Func name params block) vals =
-    if (validParams params vals) then
+execFunc (Func name params block) vals
+    | validParams params vals =
         let kvPairs = zipWith (\(Param name _) x -> (name, x)) params vals
         in fst (execBlock block [] (Map.fromList kvPairs))
-        else E.throw (TypeError $ (show vals) ++ " stack does not match params "
-            ++ (show params) ++ " of func " ++ name ++ ".")
+    | otherwise = E.throw (TypeError $ (show vals) ++ " stack does not match "
+        ++ "params " ++ (show params) ++ " of func " ++ name ++ ".")
 
 -- |Returns a modification of the given WasmVal stack and execution
 --  environment by executing the instructions in the given block.
@@ -41,9 +41,10 @@ execFunc (Func name params block) vals =
 --  supported or lead to run-time errors.
 execBlock :: Block -> [WasmVal] -> Map.Map String WasmVal ->
     ([WasmVal], Map.Map String WasmVal)
-execBlock (Block res []) stack locals = if validResults res (reverse stack)
-    then (reverse stack, locals) else E.throw (TypeError $ (show stack)
-        ++ " stack does not match results " ++ (show res) ++ " of block.")
+execBlock (Block res []) stack locals
+    | validResults res (reverse stack) = (reverse stack, locals)
+    | otherwise = E.throw (TypeError $ (show stack) ++ " stack does not match"
+        ++ "results " ++ (show res) ++ " of block.")
 execBlock (Block res (i:is)) stack locals =
     let update = execInstr i stack locals
     in  execBlock (Block res (is)) (fst update) (snd update)
@@ -78,8 +79,9 @@ valsOfType vals types =
 execInstr :: Instr -> [WasmVal] -> Map.Map String WasmVal ->
     ([WasmVal], Map.Map String WasmVal)
 execInstr (EnterBlock block) stack locals = execBlock block stack locals
-execInstr (If instr) (x:stack) locals = if valToBool x
-    then execInstr instr stack locals else (stack, locals)
+execInstr (If instr) (x:stack) locals
+    | valToBool x = execInstr instr stack locals
+    | otherwise   = (stack, locals)
 execInstr (LocalGet tag) stack locals = case Map.lookup tag locals of
     Just val -> (val:stack, locals)
     Nothing -> E.throw (LookupError $ "on local var \"" ++ tag ++ "\".")
@@ -112,11 +114,11 @@ valToBool val = case val of
 --  same type.
 binOp :: WasmType -> WasmVal -> WasmVal -> (Integer -> Integer -> Integer) ->
     (Double -> Double -> Double) -> WasmVal
-binOp typ x y opI opF = if not (x `ofType` typ && y `ofType` typ)
-    then E.throw (TypeError "binOp type does not match the types of its args.")
-    else case (x, y) of
+binOp typ x y opI opF
+    | x `ofType` typ && y `ofType` typ = case (x, y) of
         (I32Val a, I32Val b) -> I32Val (a `opI` b)
         (I64Val a, I64Val b) -> I64Val (a `opI` b)
         (F32Val a, F32Val b) -> F32Val (a `opF` b)
         (F64Val a, F64Val b) -> F64Val (a `opF` b)
         (_, _) -> E.throw (TypeError "binOp on two different types.")
+    | otherwise = E.throw (TypeError "binOp type does not match arg type.")
