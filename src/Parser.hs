@@ -122,7 +122,7 @@ instance MonadPlus Parser where
 
 instance Alternative Parser where
   empty  = mzero
-  p <|> q = Parser(\s -> 
+  p <|> q = Parser(\s ->
     case parse p s of
       []  -> parse q s
       res -> res)
@@ -133,10 +133,10 @@ item = Parser (\cs -> case cs of
   (c:cs) -> [(c,cs)])
 
 sat  :: (Token -> Bool) -> Parser Token
-sat p = do 
+sat p = do
   c <- item
-  if p c 
-    then return c 
+  if p c
+    then return c
     else mzero
 
 {-
