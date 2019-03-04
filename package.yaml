@@ -29,6 +29,7 @@ library:
     - containers
     - regex-compat
     - regex-pcre
+    - parsec
 
 executables:
   sturdy-wasm-exe:
