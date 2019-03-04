@@ -141,7 +141,7 @@ parseConst = do
         I64 -> Numeric . Parser.Const . I64Val <$> integer
 
 parseNumericInstr :: Parser Instr
-parseNumericInstr = do
+parseNumericInstr = try parseConst <|> do
   t <- parseType
   _ <- dot
   i <- anyKeyword
