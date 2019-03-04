@@ -9,7 +9,7 @@ import Text.Regex.PCRE
 import Tokens
 
 
-data Tokenizable a 
+data Tokenizable a
     = CompleteToken a
     | IncompleteToken a
     deriving (Show, Eq)
@@ -25,11 +25,11 @@ tokenizeS str = case str of
     ")" -> RP
     _ -> tokenizeStringHelper str
 
--- Helper functions -- 
+-- Helper functions --
 
 -- | tokenizeSyma stream of tokens [Note: Can be improved].
 tokenizeStream :: String -> (String, [Token]) -> (String, [Token])
-tokenizeStream str (mem, tokens) 
+tokenizeStream str (mem, tokens)
     | str == [] = case mem of
         [] -> ("", tokens)
         _ -> ("", tokenizeS (trim mem) : tokens)
@@ -52,7 +52,7 @@ isCompleteToken (IncompleteToken _) = False
 
 -- | Find out if the character will complete the token.
 findToken :: Char -> String -> Tokenizable String
-findToken char str 
+findToken char str
     | char == '(' || char == ')' = CompleteToken str
     | [char] =~ "\\s" && str /= "" = CompleteToken str
     | [char] =~ "\\s" && str == "" = IncompleteToken str
@@ -60,7 +60,7 @@ findToken char str
 
 -- | Trim whitespaces from the strings that will be tokenized
 trim :: String -> String
-trim str 
+trim str
     | str == "" = ""
     | [last str]  =~ "\\s" = trim $ init str
     | [head str]  =~ "\\s" = trim $ tail str
@@ -75,7 +75,7 @@ tokenizeSym(CompleteToken str) = case str of
     "(" -> LP
     ")" -> RP
     _ -> tokenizeStringHelper str
-    
+
 tokenizeStringHelper :: String -> Token
 tokenizeStringHelper str
     | head str == '$' = ID $ drop 1 str
