@@ -2,7 +2,7 @@ module Lib
     ( someFunc
     ) where
 
-import              Lexer
+import              Parser
 import              System.Environment
 import              Data.List
 import qualified    Data.Text as T (strip, pack, unpack)
@@ -24,13 +24,13 @@ interactive :: IO ()
 interactive = do 
     putStrLn "Character: "
     input <- getLine
-    print $ tokenize input
+    print $ parseFunc Parser.function input
 
 -- |Reads a file and executes 
 execute :: String -> IO ()
 execute filename = do
     contents <- readFile filename
-    print $ tokenize $ cleanInput contents -- TODO: clean up input string
+    print $ parseFunc Parser.function $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
 someFunc = parseArgs =<< getArgs
