@@ -28,7 +28,7 @@ library:
   dependencies:
     - containers
     - regex-compat
-    - regex-pcre
+    - regex-pcre-builtin
 
 executables:
   sturdy-wasm-exe:
