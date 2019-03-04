@@ -201,7 +201,7 @@ function = parens $ do
   keyword "func"
   idstr <- identifier
   params <- many $ try param
-  resultTypes <- many parseResultType
+  resultTypes <- many $ try parseResultType
   instr  <- parseBody
   return $ Func idstr params $ Block resultTypes instr
 

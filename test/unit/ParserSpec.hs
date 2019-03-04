@@ -42,6 +42,8 @@ tsToWasmF = describe "toWasmF" $ do
 tsParse :: Spec
 tsParse = describe "parse" $ do
     testParse
+    testParseFolded
+    testParseEmptyBody
 
 -- Tests --
 
@@ -97,3 +99,12 @@ testToWasmF64 = it "Creating an F64Val" $
 testParse = it "Should be able to parse a simple add function" $
     parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
     (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
+
+testParseFolded = it "Should be able to parse a simple folded instruction" $
+    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
+
+testParseEmptyBody = it "Should be able to parse a function with an empty body" $
+    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [] []))
+    
