@@ -27,8 +27,6 @@ library:
   source-dirs: src
   dependencies:
     - containers
-    - regex-compat
-    - regex-pcre
     - parsec
 
 executables:
