@@ -5,13 +5,14 @@ module Executor
   ) where
 
 import Parser
-import qualified Data.Map as Map
+import Environment
+import qualified Data.Map as M
 import qualified Control.Exception as E
 
 -- |All exceptions that can be thrown by the executor.
 data ExecutorException
     = TypeError String          -- ^For failed type matching.
-    | LookupError String        -- ^For variable lookup errors.
+    | OutOfScope String         -- ^For variable scope errors.
     | WasmArithError String     -- ^For arithmetic errors that would have been
                                 --  runtime errors in WASM (like div by zero).
     | NotImplemented Instr      -- ^For unimplemented instruction.
@@ -24,32 +25,31 @@ instance E.Exception ExecutorException
 executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
 executorCatch handler x = E.catch (E.evaluate x) handler
 
--- |Interprets and executes the given wasm function using the given list of
---  WasmVal parameters.
+-- |Interprets and executes the given wasm function using a given Environment.
 --  If the parameter list does not match the required parameters of the function
 --  definition a TypeError is thrown. ExecutorExceptions are also thrown if
 --  instructions in the function are not supported or lead to run-time errors.
-execFunc :: Func -> [WasmVal] -> [WasmVal]
-execFunc (Func name params block) vals
-    | validParams params vals =
-        let kvPairs = zipWith (\(Param name _) x -> (name, x)) params vals
-        in fst (execBlock block [] (Map.fromList kvPairs))
-    | otherwise = E.throw (TypeError $ (show vals) ++ " stack does not match "
+execFunc :: Func -> Environment -> Environment
+execFunc (Func name params block) env
+    | validParams params (stack env) =
+        let kvPairs = zipWith (\(Param name _) x -> (name, x)) params (stack env)
+            newEnv  = stackPopN (length params) env
+        in  clearLoc $ execBlock block (setLoc newEnv (M.fromList kvPairs))
+    | otherwise = E.throw (TypeError $ (show (stack env)) ++ " stack does not match "
         ++ "params " ++ (show params) ++ " of func " ++ name ++ ".")
 
 -- |Returns a modification of the given WasmVal stack and execution
 --  environment by executing the instructions in the given block.
 --  An ExecutorException might be thrown if instructions in the function are not
 --  supported or lead to run-time errors.
-execBlock :: Block -> [WasmVal] -> Map.Map String WasmVal ->
-    ([WasmVal], Map.Map String WasmVal)
-execBlock (Block res []) stack locals
-    | validResults res (reverse stack) = (reverse stack, locals)
-    | otherwise = E.throw (TypeError $ (show stack) ++ " stack does not match"
+execBlock :: Block -> Environment -> Environment
+execBlock (Block res []) env
+    | validResults res (stack env) = env
+    | otherwise = E.throw (TypeError $ (show (stack env)) ++ " stack does not match"
         ++ "results " ++ (show res) ++ " of block.")
-execBlock (Block res (i:is)) stack locals =
-    let update = execInstr i stack locals
-    in  execBlock (Block res (is)) (fst update) (snd update)
+execBlock (Block res (i:is)) env =
+    let update = execInstr i env
+    in  execBlock (Block res (is)) update
 
 -- |Determines whether or not the given WasmVal stack matches a given parameter
 --  definition. Match checking is done using the valsOfType function.
@@ -76,32 +76,35 @@ valsOfType vals types =
 --  by executing the given Instr in the given block as if it were an actual
 --  wasm instruction.
 --  Throws a NotImplemented if there is no implementation for the given Instr.
---  Throws a LookupError if the Instr cannot be executed within this
+--  Throws a OutOfScope if the Instr cannot be executed within this
 --  environment.
-execInstr :: Instr -> [WasmVal] -> Map.Map String WasmVal ->
-    ([WasmVal], Map.Map String WasmVal)
-execInstr (EnterBlock block) stack locals = execBlock block stack locals
-execInstr (If instr) (x:stack) locals
-    | valToBool x = execInstr instr stack locals
-    | otherwise   = (stack, locals)
-execInstr (LocalGet tag) stack locals = case Map.lookup tag locals of
-    Just val -> (val:stack, locals)
-    Nothing -> E.throw (LookupError $ "on local var \"" ++ tag ++ "\".")
-execInstr (LocalSet tag) (x:stack) locals = (stack, Map.insert tag x locals)
-execInstr (LocalTee tag) stack locals =
-    let whenSet = execInstr (LocalSet tag) stack locals
-    in  execInstr (LocalGet tag) (fst whenSet) (snd whenSet)
-execInstr (Numeric (Const val)) stack locals = (val:stack, locals)
-execInstr (Numeric (Add typ)) (x:y:stack) locals =
-    ((binOp typ y x (+) (+)):stack, locals)
-execInstr (Numeric (Sub typ)) (x:y:stack) locals =
-    ((binOp typ y x (-) (-)):stack, locals)
-execInstr (Numeric (Mul typ)) (x:y:stack) locals =
-    ((binOp typ y x (*) (*)):stack, locals)
-execInstr (Numeric (Div typ Signed)) (x:y:stack) locals =
-    ((binOp typ y x div (/)):stack, locals)
-execInstr Nop stack locals = (stack, locals)
-execInstr instr _ _ = E.throw $ NotImplemented instr
+execInstr :: Instr -> Environment -> Environment
+execInstr (EnterBlock block) env = execBlock block env
+execInstr (If instr) env
+    | valToBool (stackHead env) = execInstr instr (setStack env (stackTail env))
+    | otherwise = env
+execInstr (LocalGet tag) env = case M.lookup tag (loc env) of
+    Just val -> stackPush env val
+    Nothing -> E.throw (OutOfScope $ "on lookup local var \"" ++ tag ++ "\".")
+execInstr (LocalSet tag) env
+    | M.member tag (loc env) = setStack (insertLoc env tag (stackHead env))
+        (stackTail env)
+    | otherwise = E.throw (OutOfScope $ "on setting local var \"" ++ tag
+        ++ "\".")
+execInstr (LocalTee tag) env =
+    let afterSet = execInstr (LocalSet tag) env
+    in  execInstr (LocalGet tag) afterSet
+execInstr (Numeric (Const val)) env = stackPush env val
+execInstr (Numeric (Add typ)) env@(Environment (x:y:s) _ _) =
+    setStack env ((binOp typ y x (+) (+)):s)
+execInstr (Numeric (Sub typ)) env@(Environment (x:y:s) _ _) =
+    setStack env ((binOp typ y x (-) (-)):s)
+execInstr (Numeric (Mul typ)) env@(Environment (x:y:s) _ _) =
+    setStack env ((binOp typ y x (*) (*)):s)
+execInstr (Numeric (Div typ Signed)) env@(Environment (x:y:s) _ _) =
+    setStack env ((binOp typ y x div (/)):s)
+execInstr Nop env = env
+execInstr instr _ = E.throw $ NotImplemented instr
 
 -- |Defines wasm I32 values as "falsy" if equal to 0 and "truthy" otherwise.
 --  Throws a TypeError if a value of any other type than I32 is given.

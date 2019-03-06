@@ -5,6 +5,7 @@ import Test.Hspec
 import Lexer
 import Parser
 import Executor
+import Environment
 
 -- Test suites --
 spec :: Spec
@@ -18,7 +19,7 @@ tsFunctions = describe "functions" $ do
     testSimpleAddition
 
 
--- Tests --  
+-- Tests --
 
 programAdd = "(func $add (param $a i32) (param $b i32) \n\
                 \(result i32)\n\
@@ -29,5 +30,5 @@ programAdd = "(func $add (param $a i32) (param $b i32) \n\
 functionAdd = fst $ head $ parse Parser.function (tokenize programAdd)
 
 testSimpleAddition = it "Parse a function which does addition" $
-    property $ \(x,y) -> execFunc functionAdd [I32Val (x::Integer), I32Val (y::Integer)] `shouldBe` [I32Val (x+y)]
-     
+    property $ \(x,y) -> execFunc functionAdd (fromStack [I32Val (x::Integer), I32Val (y::Integer)])
+        `shouldBe` (fromStack [I32Val (x+y)])
