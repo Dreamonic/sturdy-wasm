@@ -10,6 +10,7 @@ module Parser(
   , Result(..)
   , SignedNess(..)
   , ofType
+  , getType
   , parse
   , toWasmI
   , toWasmF
@@ -57,6 +58,7 @@ data TypedInstr
   | Xor WasmType
   | Abs WasmType
   | Neg WasmType
+  | Popcnt WasmType
   deriving (Show, Eq)
 
 data WasmVal
@@ -162,6 +164,7 @@ makeII "rem_u" t = return $ Rem t Unsigned
 makeII "and" t   = return $ And t
 makeII "or"  t   = return $ Or t
 makeII "xor" t   = return $ Xor t
+makeII "popcnt" t = return $ Popcnt t
 
 makeII str   t   = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 

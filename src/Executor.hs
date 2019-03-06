@@ -8,6 +8,7 @@ import Parser
 import Environment
 import qualified Data.Map as M
 import qualified Control.Exception as E
+import Data.Bits
 
 -- |All exceptions that can be thrown by the executor.
 data ExecutorException
@@ -101,6 +102,12 @@ execInstr (Numeric (Mul typ)) env@(Environment (x:y:s) _ _) =
     setStack ((binOp typ y x (*) (*)):s) env
 execInstr (Numeric (Div typ Signed)) env@(Environment (x:y:s) _ _) =
     setStack ((binOp typ y x div (/)):s) env
+execInstr (Numeric (Abs typ)) env@(Environment (x:s) _ _) =
+    setStack (res:s) env where res = fUnOp typ x abs
+execInstr (Numeric (Neg typ)) env@(Environment (x:s) _ _) =
+    setStack (res:s) env where res = fUnOp typ x negate
+execInstr (Numeric (Popcnt typ)) env@(Environment (x:s) _ _) =
+    setStack (res:s) env where res = iUnOp typ x $ toInteger . popCount
 execInstr Nop env = env
 execInstr instr _ = E.throw $ NotImplemented instr
 
@@ -125,3 +132,49 @@ binOp typ x y opI opF
         (F64Val a, F64Val b) -> F64Val (a `opF` b)
         (_, _) -> E.throw (TypeError "binOp on two different types.")
     | otherwise = E.throw (TypeError "binOp type does not match arg type.")
+
+-- | Evaluates an integer unary operator of a single WasmVal and
+-- returns the resulting WasmVal.
+iUnOp :: WasmType -> WasmVal -> (Integer -> Integer) -> WasmVal
+iUnOp opType val op
+  | val `ofType` opType = case val of
+    (I32Val a) -> I32Val (op a)
+    (I64Val a) -> I64Val (op a)
+    _ -> E.throw $ TypeError "Integer unary operator called with float"
+  | otherwise = E.throw $ TypeError ("operation type does not match, Expected: " ++
+    show opType ++ " but got: " ++ show valueType)
+  where valueType = getType val
+
+-- | Evaluates an floating point unary operator of a single WasmVal and
+-- returns the resulting WasmVal.
+fUnOp :: WasmType -> WasmVal -> (Double -> Double) -> WasmVal
+fUnOp opType val op
+  | val `ofType` opType = case val of
+    (F32Val a) -> F32Val (op a)
+    (F64Val a) -> F64Val (op a)
+    _ -> E.throw $ TypeError "Float unary operator called with integer"
+  | otherwise = E.throw $ TypeError ("operation type does not match, Expected: " ++
+    show opType ++ " but got: " ++ show valueType)
+  where valueType = getType val
+
+-- | Return the count of trailing zero bits in a
+-- all bits are considered trailing zeros if a is 0
+ctz :: WasmType -> Integer -> Int
+ctz typ a = case typ of
+  I32 -> countWhile condition [0..31]
+  I64 -> countWhile condition [0..63]
+  _ -> E.throw $ TypeError "ctz called with float"
+  where condition = (not . testBit a)
+
+-- | Return the count of leading zero bits in a
+-- all bits are considered leading zeros if a is 0
+clz :: WasmType -> Integer -> Int
+clz typ a = case typ of
+  I32 -> countWhile condition [31,30..0]
+  I64 -> countWhile condition [63,62..0]
+  _ -> E.throw $ TypeError "clz called with float"
+  where condition = (not . testBit a)
+
+countWhile :: Num a => (a -> Bool) -> [a] -> Int
+countWhile _ [] = 0
+countWhile c (x:xs) = if c x then 1 + countWhile c xs else 0
