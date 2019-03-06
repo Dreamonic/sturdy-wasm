@@ -1,105 +1,89 @@
--- | This module takes a text input and transforms it into a few different tokens.
 module Lexer(
-    tokenizeS
-    , tokenize
+    identifier
+    , anyKeyword
+    , keyword
+    , charLiteral 
+    , stringLiteral
+    , natural
+    , integer
+    , float
+    , naturalOrFloat
+    , decimal
+    , hexadecimal
+    , symbol
+    , lexeme
+    , whiteSpace
+    , parens
+    , dot
 ) where
 
-import Data.Char (isDigit)
-import Text.Regex.PCRE
-import Tokens
+import Data.Char
 
+import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Expr
+import Text.ParserCombinators.Parsec.Language
 
-data Tokenizable a
-    = CompleteToken a
-    | IncompleteToken a
-    deriving (Show, Eq)
+import qualified Text.ParserCombinators.Parsec.Token as T
 
--- | Create a list of tokens, from a string containing multiple tokens.
-tokenize :: String -> [Token]
-tokenize str = reverse $ snd $ tokenizeStream str ("", [])
+import           Control.Monad
 
--- | tokenizeSyma single token, contained within a string.
-tokenizeS :: String -> Token
-tokenizeS str = case str of
-    "(" -> LP
-    ")" -> RP
-    _ -> tokenizeStringHelper str
+-- Currently the parser sometimes consumes a keyword regardless of which one, in order for that to work
+-- there shouldn't be any explicitly reserved operators
+-- types = ["i32", "i64", "f32", "f64"]
+-- instructions = ["add", "sub", "mul", "get_local"]
+-- keywords = types ++ instructions ++ ["param", "result", "func", "module"]
+keywords = []
 
--- Helper functions --
+langDef = LanguageDef {
 
--- | tokenizeSyma stream of tokens [Note: Can be improved].
-tokenizeStream :: String -> (String, [Token]) -> (String, [Token])
-tokenizeStream str (mem, tokens)
-    | str == [] = case mem of
-        [] -> ("", tokens)
-        _ -> ("", tokenizeS (trim mem) : tokens)
-    | head str == '(' || head str == ')' = case trim mem of
-        [] -> tokenizeStream (tail str) ("", tokenizeS [head str] : tokens)
-        _ -> tokenizeStream (tail str) ("",  tokenizeS [head str] : tokenizeSym(findToken (head str) mem): tokens)
-    | isCompleteToken (findToken (head str) mem) = tokenizeStream (tail str) ("", tokenizeSym(findToken (head str) mem) : tokens)
-    | otherwise = tokenizeStream (tail str) (tokenizableToString (findToken (head str) mem), tokens)
+    T.commentStart = "(;",
 
--- | Casts a token to a string.
-tokenizableToString :: Tokenizable String -> String
-tokenizableToString (CompleteToken str) = str
-tokenizableToString (IncompleteToken str) = str
+    T.commentEnd = ";)",
 
--- | Check if a tokenizable is complete, or is still missing some information.
-isCompleteToken :: Tokenizable a -> Bool
-isCompleteToken (CompleteToken _) = True
-isCompleteToken (IncompleteToken _) = False
+    T.commentLine =";",
 
+    T.nestedComments = False,
 
--- | Find out if the character will complete the token.
-findToken :: Char -> String -> Tokenizable String
-findToken char str
-    | char == '(' || char == ')' = CompleteToken str
-    | [char] =~ "\\s" && str /= "" = CompleteToken str
-    | [char] =~ "\\s" && str == "" = IncompleteToken str
-    | otherwise = IncompleteToken $ str ++ [char]
+    -- The start of an identifier
+    T.identStart = char '$',
 
--- | Trim whitespaces from the strings that will be tokenized
-trim :: String -> String
-trim str
-    | str == "" = ""
-    | [last str]  =~ "\\s" = trim $ init str
-    | [head str]  =~ "\\s" = trim $ tail str
-    | otherwise = str
+    -- Can end with any idchar
+    T.identLetter = alphaNum <|> oneOf "!#$%&′∗+−./:<=>?@∖^_`|~",
 
--- | tokenize a stream of characters.
-tokenizeCharStream :: String -> [Token] -> [Token]
-tokenizeCharStream str tokens = tokenizeS str : tokens
+    -- Used for keywords
+    T.opStart = satisfy isAsciiLower,
 
-tokenizeSym:: Tokenizable String -> Token
-tokenizeSym(CompleteToken str) = case str of
-    "(" -> LP
-    ")" -> RP
-    _ -> tokenizeStringHelper str
+    -- Can end with any idchar (w/o '.' to simplify parsing)
+    T.opLetter = alphaNum <|> oneOf "!#$%&′∗+−/:<=>?@∖^_`|~",
 
-tokenizeStringHelper :: String -> Token
-tokenizeStringHelper str
-    | head str == '$' = ID $ drop 1 str
-    | head str == '\"' && last str == '\"' = Str $ drop 1 $ init str
-    | checkKeyword str = Keyword str
-    | otherwise = tokenizeNumber str
+    -- Wasm doesn't have reserved identifiers (starting with a $)
+    T.reservedNames = [],
 
-tokenizeNumber :: String -> Token
-tokenizeNumber str = case dropWhile isDigit str of
-    "" -> UnsignedN (read str :: Integer)
-    '-':decimals -> case dropWhile isDigit decimals of
-        "" -> SignedN (read str :: Integer)
-    '.':decimals -> case dropWhile isDigit decimals of
-        "" -> FloatN (read str :: Double)
-    _ -> Reserved str
+    -- Keywords are reserved operator names
+    T.reservedOpNames = keywords,
 
-checkKeyword :: String -> Bool
-checkKeyword str = head str >= 'a' && head str <= 'z' && all isIDChar str
+    T.caseSensitive = True
 
-isIDChar:: Char -> Bool
-isIDChar c
-    | c >= '0' && c <='9' = True
-    | c >= 'A' && c <='Z' = True
-    | c >= 'a' && c <='z' = True
-    | elem c "!#$%&*+-./" = True
-    | elem c ":<=>?@\\~_|" = True
-    | otherwise = False
+}
+
+lexer :: T.TokenParser st
+lexer = T.makeTokenParser langDef
+
+identifier = T.identifier lexer
+-- reserved   = T.reserved   lexer
+anyKeyword = T.operator lexer -- Renamed to anyKeyword for consitency with webasm terminology and previous parser
+keyword = T.reservedOp lexer -- Renamed to keyword for consitency with webasm terminology and previous parser
+charLiteral = T.charLiteral lexer
+stringLiteral = T.stringLiteral lexer
+natural = T.natural lexer
+integer = T.integer lexer
+float = T.float lexer
+naturalOrFloat = T.naturalOrFloat lexer
+decimal = T.decimal lexer
+hexadecimal = T.hexadecimal lexer
+symbol = T.symbol lexer
+lexeme = T.lexeme lexer
+whiteSpace = T.whiteSpace lexer
+parens = T.parens lexer
+dot = T.dot lexer
+

@@ -2,7 +2,6 @@ module ParserSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
-import Tokens
 import Parser
 import Lexer
 
@@ -43,6 +42,8 @@ tsToWasmF = describe "toWasmF" $ do
 tsParse :: Spec
 tsParse = describe "parse" $ do
     testParse
+    testParseFolded
+    testParseEmptyBody
 
 -- Tests --
 
@@ -96,5 +97,14 @@ testToWasmF64 = it "Creating an F64Val" $
 --- parse ---
 
 testParse = it "Should be able to parse a simple add function" $
-    parse Parser.function [LP,Keyword "func",ID "add",LP,Keyword "param",ID "lhs",Keyword "i32",RP,LP,Keyword "param",ID "rhs",Keyword "i32",RP,LP,Keyword "result",Keyword "i32",RP,Keyword "get_local",ID "lhs",Keyword "get_local",ID "rhs",Keyword "i32.add",RP] `shouldBe`
-    [(Func "add" [Param "lhs" I32,Param "rhs" I32] (Block [Result I32] [LocalGet "lhs",LocalGet "rhs",Numeric (Add I32)]),[])]
+    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
+
+testParseFolded = it "Should be able to parse a simple folded instruction" $
+    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
+
+testParseEmptyBody = it "Should be able to parse a function with an empty body" $
+    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [] []))
+    
