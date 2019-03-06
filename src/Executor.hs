@@ -26,20 +26,19 @@ executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
 executorCatch handler x = E.catch (E.evaluate x) handler
 
 -- |Interprets and executes the given wasm function using a given Environment.
---  If the parameter list does not match the required parameters of the function
+--  If the list of args does not match the required parameters of the function
 --  definition a TypeError is thrown. ExecutorExceptions are also thrown if
---  instructions in the function are not supported or lead to run-time errors.
+--  instructions in the function body lead to run-time errors.
 execFunc :: Func -> Environment -> Environment
 execFunc (Func name params block) env
     | validParams params (stack env) =
         let kvPairs = zipWith (\(Param name _) x -> (name, x)) params (stack env)
-            newEnv  = stackPopN (length params) env
-        in  clearLoc $ execBlock block (setLoc (M.fromList kvPairs) newEnv)
+        in  clearLoc (execBlock block (clearStack (setLoc (M.fromList kvPairs) env)))
     | otherwise = E.throw (TypeError $ (show (stack env)) ++ " stack does not match "
         ++ "params " ++ (show params) ++ " of func " ++ name ++ ".")
 
--- |Returns a modification of the given WasmVal stack and execution
---  environment by executing the instructions in the given block.
+-- |Returns a modification of the given Environment by executing the
+--  instructions in the given block sequentially.
 --  An ExecutorException might be thrown if instructions in the function are not
 --  supported or lead to run-time errors.
 execBlock :: Block -> Environment -> Environment
@@ -72,9 +71,8 @@ valsOfType vals types =
     let zipped = zipWith ofType vals types
     in (length types) == (length vals) && (foldl (&&) True zipped)
 
--- |Returns a modification of the given WasmVal stack and execution environment
---  by executing the given Instr in the given block as if it were an actual
---  wasm instruction.
+-- |Returns a modification of the given Environment by executing the specified
+--  instruction as if it were an actual wasm instruction.
 --  Throws a NotImplemented if there is no implementation for the given Instr.
 --  Throws a OutOfScope if the Instr cannot be executed within this
 --  environment.
