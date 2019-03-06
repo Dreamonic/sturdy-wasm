@@ -34,7 +34,7 @@ execFunc (Func name params block) env
     | validParams params (stack env) =
         let kvPairs = zipWith (\(Param name _) x -> (name, x)) params (stack env)
             newEnv  = stackPopN (length params) env
-        in  clearLoc $ execBlock block (setLoc newEnv (M.fromList kvPairs))
+        in  clearLoc $ execBlock block (setLoc (M.fromList kvPairs) newEnv)
     | otherwise = E.throw (TypeError $ (show (stack env)) ++ " stack does not match "
         ++ "params " ++ (show params) ++ " of func " ++ name ++ ".")
 
@@ -81,28 +81,28 @@ valsOfType vals types =
 execInstr :: Instr -> Environment -> Environment
 execInstr (EnterBlock block) env = execBlock block env
 execInstr (If instr) env
-    | valToBool (stackHead env) = execInstr instr (setStack env (stackTail env))
+    | valToBool (stackHead env) = execInstr instr (setStack (stackTail env) env)
     | otherwise = env
 execInstr (LocalGet tag) env = case M.lookup tag (loc env) of
-    Just val -> stackPush env val
+    Just val -> stackPush val env
     Nothing -> E.throw (OutOfScope $ "on lookup local var \"" ++ tag ++ "\".")
 execInstr (LocalSet tag) env
-    | M.member tag (loc env) = setStack (insertLoc env tag (stackHead env))
-        (stackTail env)
+    | M.member tag (loc env) = setStack (stackTail env) (insertLoc tag
+        (stackHead env) env)
     | otherwise = E.throw (OutOfScope $ "on setting local var \"" ++ tag
         ++ "\".")
 execInstr (LocalTee tag) env =
     let afterSet = execInstr (LocalSet tag) env
     in  execInstr (LocalGet tag) afterSet
-execInstr (Numeric (Const val)) env = stackPush env val
+execInstr (Numeric (Const val)) env = stackPush val env
 execInstr (Numeric (Add typ)) env@(Environment (x:y:s) _ _) =
-    setStack env ((binOp typ y x (+) (+)):s)
+    setStack ((binOp typ y x (+) (+)):s) env
 execInstr (Numeric (Sub typ)) env@(Environment (x:y:s) _ _) =
-    setStack env ((binOp typ y x (-) (-)):s)
+    setStack ((binOp typ y x (-) (-)):s) env
 execInstr (Numeric (Mul typ)) env@(Environment (x:y:s) _ _) =
-    setStack env ((binOp typ y x (*) (*)):s)
+    setStack ((binOp typ y x (*) (*)):s) env
 execInstr (Numeric (Div typ Signed)) env@(Environment (x:y:s) _ _) =
-    setStack env ((binOp typ y x div (/)):s)
+    setStack ((binOp typ y x div (/)):s) env
 execInstr Nop env = env
 execInstr instr _ = E.throw $ NotImplemented instr
 

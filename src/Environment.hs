@@ -30,8 +30,8 @@ data Environment = Environment { stack :: Stack
 emptyEnv :: Environment
 emptyEnv = Environment [] M.empty M.empty
 
-setStack :: Environment -> Stack -> Environment
-setStack (Environment _ l g) s = Environment s l g
+setStack :: Stack -> Environment -> Environment
+setStack s (Environment _ l g) = Environment s l g
 
 stackHead :: Environment -> WasmVal
 stackHead env = head (stack env)
@@ -39,26 +39,26 @@ stackHead env = head (stack env)
 stackTail :: Environment -> [WasmVal]
 stackTail env = tail (stack env)
 
-stackPush :: Environment -> WasmVal -> Environment
-stackPush env x = setStack env (x:(stack env))
+stackPush :: WasmVal -> Environment -> Environment
+stackPush x env = setStack (x:(stack env)) env
 
 stackPopN :: Int -> Environment -> Environment
-stackPopN n env = setStack env (drop n (stack env))
+stackPopN n env = setStack (drop n (stack env)) env
 
 stackPop :: Environment -> Environment
 stackPop = stackPopN 1
 
 fromStack :: Stack -> Environment
-fromStack s = setStack emptyEnv s
+fromStack s = setStack s emptyEnv
 
-setLoc :: Environment -> WasmValMap -> Environment
-setLoc (Environment s _ g) l = Environment s l g
+setLoc :: WasmValMap -> Environment -> Environment
+setLoc l (Environment s _ g) = Environment s l g
 
 clearLoc :: Environment -> Environment
-clearLoc (Environment s l g) = Environment s M.empty g
+clearLoc = setLoc M.empty
 
-insertLoc :: Environment -> String -> WasmVal -> Environment
-insertLoc (Environment s l g) tag x = Environment s (M.insert tag x l) g
+insertLoc :: String -> WasmVal -> Environment -> Environment
+insertLoc tag x env = setLoc (M.insert tag x (loc env)) env
 
 setGlob :: Environment -> WasmValMap -> Environment
 setGlob (Environment s l _) g = Environment s l g
