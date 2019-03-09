@@ -27,6 +27,10 @@ tsExecFunc = describe "execFunc" $ do
     testCatchWithError
     testExecFaultyIf
     testExecLookupErrorCode
+    testCtzInstruction
+    testClzInstruction
+    testAbsInstruction
+    testNegInstruction
     --testExecDivision
     --testExecDivByZero
 
@@ -140,3 +144,19 @@ testExecLookupErrorCode = it "Test a OutOfScope when fetching a non-existing loc
     E.evaluate (execFunc lookupErrorCode emptyEnv) `shouldThrow` outOfScope
 --testExecDivByZero = it "Test division by 0" $
 --   property $ \x -> execFunc division [I32Val (x::Integer), I32Val 0] `shouldThrow` DivideByZero
+
+testCtzInstruction = it "Text correct behaviour of 32 bit ctz instruction" $
+    execFunc (Func "$f" [] (Block [Result I32] [Numeric (Const (I32Val 4)), Numeric (Ctz I32)])) emptyEnv
+        `shouldBe` (fromStack [I32Val 2])
+
+testClzInstruction = it "Text correct behaviour of 32 bit clz instruction" $
+    execFunc (Func "$f" [] (Block [Result I32] [Numeric (Const (I32Val 4)), Numeric (Clz I32)])) emptyEnv
+        `shouldBe` (fromStack [I32Val 29])
+
+testAbsInstruction = it "Text correct behaviour of abs instruction" $
+    property $ \x -> execFunc (Func "$f" [] (Block [Result F64] [Numeric (Const (F64Val (x::Double))), Numeric (Abs F64)])) emptyEnv
+        `shouldBe` (fromStack [F64Val $ abs x])
+
+testNegInstruction = it "Text correct behaviour of neg instruction" $
+    property $ \x -> execFunc (Func "$f" [] (Block [Result F64] [Numeric (Const (F64Val (x::Double))), Numeric (Neg F64)])) emptyEnv
+        `shouldBe` (fromStack [F64Val (-1 * x)])
