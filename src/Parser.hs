@@ -59,6 +59,9 @@ data TypedInstr
   | Abs WasmType
   | Neg WasmType
   | Popcnt WasmType
+  | Clz WasmType
+  | Ctz WasmType
+  | Sqrt WasmType
   deriving (Show, Eq)
 
 data WasmVal
@@ -154,29 +157,32 @@ parseNumericInstr = try parseConst <|> do
 
 -- makeIntegerInstruction
 makeII :: String -> WasmType -> Parser TypedInstr
-makeII "add" t   = return $ Add t
-makeII "sub" t   = return $ Sub t
-makeII "mul" t   = return $ Mul t
-makeII "div_s" t = return $ Div t Signed
-makeII "div_u" t = return $ Div t Unsigned
-makeII "rem_s" t = return $ Rem t Signed
-makeII "rem_u" t = return $ Rem t Unsigned
-makeII "and" t   = return $ And t
-makeII "or"  t   = return $ Or t
-makeII "xor" t   = return $ Xor t
+makeII "add"    t   = return $ Add t
+makeII "sub"    t   = return $ Sub t
+makeII "mul"    t   = return $ Mul t
+makeII "div_s"  t = return $ Div t Signed
+makeII "div_u"  t = return $ Div t Unsigned
+makeII "rem_s"  t = return $ Rem t Signed
+makeII "rem_u"  t = return $ Rem t Unsigned
+makeII "and"    t   = return $ And t
+makeII "or"     t   = return $ Or t
+makeII "xor"    t   = return $ Xor t
+makeII "clz"    t = return $ Clz t
+makeII "ctz"    t = return $ Ctz t
 makeII "popcnt" t = return $ Popcnt t
 
 makeII str   t   = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
 -- makeFloatInstruction
 makeFI :: String -> WasmType -> Parser TypedInstr
-makeFI "add" t = return $ Add t
-makeFI "sub" t = return $ Sub t
-makeFI "mul" t = return $ Mul t
-makeFI "div" t = return $ Div t Signed
-makeFI "abs" t = return $ Abs t
-makeFI "neg" t = return $ Neg t
-makeFI str   t = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
+makeFI "add"  t = return $ Add t
+makeFI "sub"  t = return $ Sub t
+makeFI "mul"  t = return $ Mul t
+makeFI "div"  t = return $ Div t Signed
+makeFI "abs"  t = return $ Abs t
+makeFI "neg"  t = return $ Neg t
+makeFI "sqrt" t = return $ Sqrt t
+makeFI str    t = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
 parseType :: Parser WasmType
 parseType =  (keyword "i32" >> return I32)
