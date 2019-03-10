@@ -8,10 +8,17 @@ module Generators (
     , genIDChar
     , genIDString
     , genChar
+    , genI32Val
+    , genI64Val
+    , genF32Val
+    , genF64Val
+    , genWasmVal
 ) where
 
 import Test.QuickCheck
 import Test.Hspec
+import WasmTypes
+import Parser
 -- Generators --
 
 -- | Generates a random Keyword following specification.
@@ -62,3 +69,23 @@ idchar = ['0'..'9']
     ++ ['A'..'Z'] 
     ++ ['!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '/']
     ++ [':', '<', '=', '>', '?', '@', '\\', '^', '_', '`', '|', '~']
+
+-- | Generate a random I32Val.
+genI32Val :: Gen WasmVal
+genI32Val = I32Val <$> (arbitrary :: Gen Integer)
+
+-- | Generate a random I64Val.
+genI64Val :: Gen WasmVal
+genI64Val = I64Val <$> (arbitrary :: Gen Integer)
+
+-- | Generate a random F32Val.
+genF32Val :: Gen WasmVal
+genF32Val = F32Val <$> (arbitrary :: Gen Double)
+
+-- | Generate a random F64Val.
+genF64Val :: Gen WasmVal
+genF64Val = F64Val <$> (arbitrary :: Gen Double)
+
+-- | Generate a random WasmVal.
+genWasmVal :: Gen WasmVal
+genWasmVal = oneof [genI32Val, genI64Val, genF32Val, genF64Val]

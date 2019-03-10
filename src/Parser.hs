@@ -50,6 +50,12 @@ data TypedInstr
   | Xor WasmType
   | Abs WasmType
   | Neg WasmType
+  | Eql WasmType                  -- ^ WASM 'equals' operator, which check if two values are identical
+  | Ne WasmType                   -- ^ WASM 'not equals' operator, which checks if two values are different
+  | Lt WasmType SignedNess        -- ^ WASM 'less than' opeartor, which can be signed or unsigned.
+  | Le WasmType SignedNess        -- ^ WASM 'less or equal to' opeartor, which can be signed or unsigned.
+  | Gt WasmType SignedNess        -- ^ WASM 'greater than' opeartor, which can be signed or unsigned.
+  | Ge WasmType SignedNess        -- ^ WASM 'greater or equal to' opeartor, which can be signed or unsigned.
   deriving (Show, Eq)
 
 

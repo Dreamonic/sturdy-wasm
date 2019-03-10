@@ -5,6 +5,7 @@ import Test.Hspec
 import Generators
 import Parser
 import Executor
+import Exception
 import qualified Control.Exception as E
 
 -- Test suites --

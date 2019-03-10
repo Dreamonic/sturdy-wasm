@@ -1,28 +1,12 @@
 module Executor
   ( execFunc
-  , ExecutorException(..)
-  , executorCatch
   ) where
 
 import Parser
 import qualified Data.Map as Map
+import Exception
+import Instruction.Relational
 import qualified Control.Exception as E
-
--- |All exceptions that can be thrown by the executor.
-data ExecutorException
-    = TypeError String          -- ^For failed type matching.
-    | LookupError String        -- ^For variable lookup errors.
-    | WasmArithError String     -- ^For arithmetic errors that would have been
-                                --  runtime errors in WASM (like div by zero).
-    | NotImplemented Instr      -- ^For unimplemented instruction.
-    deriving Show
-
-instance E.Exception ExecutorException
-
--- |Catches ExecutorExceptions by using the given handler function that are
---  possible thrown by the given expression.
-executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
-executorCatch handler x = E.catch (E.evaluate x) handler
 
 -- |Interprets and executes the given wasm function using the given list of
 --  WasmVal parameters.
@@ -101,7 +85,7 @@ execInstr (Numeric (Mul typ)) (x:y:stack) locals =
 execInstr (Numeric (Div typ Signed)) (x:y:stack) locals =
     ((binOp typ y x div (/)):stack, locals)
 execInstr Nop stack locals = (stack, locals)
-execInstr instr _ _ = E.throw $ NotImplemented instr
+execInstr instr stack locals = execRelational instr stack locals
 
 -- |Defines wasm I32 values as "falsy" if equal to 0 and "truthy" otherwise.
 --  Throws a TypeError if a value of any other type than I32 is given.

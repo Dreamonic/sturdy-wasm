@@ -53,6 +53,7 @@ tests:
     - hspec
     - hspec-discover
     - QuickCheck
+    - containers
 
   integration-tests:
     main:                Spec.hs
