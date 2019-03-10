@@ -12,7 +12,6 @@ module Generators (
 
 import Test.QuickCheck
 import Test.Hspec
-import Tokens
 -- Generators --
 
 -- | Generates a random Keyword following specification.
@@ -55,3 +54,11 @@ genIDString = listOf genIDChar
 -- | Generate a word character
 genChar :: Gen Char
 genChar = choose ('a', 'z')
+
+-- |    This is a list of each possible idchar.
+idchar :: String
+idchar = ['0'..'9'] 
+    ++ ['a'..'z'] 
+    ++ ['A'..'Z'] 
+    ++ ['!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '/']
+    ++ [':', '<', '=', '>', '?', '@', '\\', '^', '_', '`', '|', '~']

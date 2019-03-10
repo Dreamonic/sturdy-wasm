@@ -27,8 +27,7 @@ library:
   source-dirs: src
   dependencies:
     - containers
-    - regex-compat
-    - regex-pcre-builtin
+    - parsec
 
 executables:
   sturdy-wasm-exe:

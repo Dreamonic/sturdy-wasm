@@ -14,11 +14,12 @@ module Parser(
   , toWasmI
   , toWasmF
   , function
+  , parseFunc
 ) where
 
-import           Control.Applicative
+import Text.ParserCombinators.Parsec
+
 import           Control.Monad
-import           Tokens
 import           Lexer
 
 import Data.List
@@ -94,93 +95,6 @@ data Block = Block [Result] [Instr] deriving (Show, Eq)
 data Func = Func String [Param] Block deriving (Show, Eq)
 data WasmModule = WasmModule [Func] deriving (Show, Eq)
 
-
-{-
-  Parser based on the paper Monadic Parsing in Haskell
-
-  maybe we should use e.g. parsec instead of defining these funtions
--}
-newtype Parser a = Parser ([Token] -> [(a, [Token])])
-
-parse (Parser p) = p
-
-instance Functor Parser where
-  fmap f (Parser cs) = Parser (\s -> [(f a, b) | (a, b) <- cs s])
-
-instance Applicative Parser where
-  pure = return
-  (Parser cs1) <*> (Parser cs2) = Parser (\s -> [(f a, s2) | (f, s1) <- cs1 s, (a, s2) <- cs2 s1])
-
-instance Monad Parser where
-  return a = Parser (\cs -> [(a,cs)])
-  p >>= f = Parser (\cs -> concat [parse (f a) cs' |
-    (a,cs') <- parse p cs])
-
-instance MonadPlus Parser where
-  mzero = Parser (\cs -> [])
-  mplus p q = Parser (\cs -> parse p cs ++ parse q cs)
-
-instance Alternative Parser where
-  empty  = mzero
-  p <|> q = Parser(\s ->
-    case parse p s of
-      []  -> parse q s
-      res -> res)
-
-item :: Parser Token
-item = Parser (\cs -> case cs of
-  []     -> []
-  (c:cs) -> [(c,cs)])
-
-sat  :: (Token -> Bool) -> Parser Token
-sat p = do
-  c <- item
-  if p c
-    then return c
-    else mzero
-
-{-
-    End parsing primitives
--}
-
-
-parens :: Parser a -> Parser a
-parens p = do
-  sat $ isToken LP
-  res <- p
-  sat $ isToken RP
-  return res
-
-{- Functions that extract values from a token -}
-extractIDString :: Token -> Parser String
-extractIDString (ID str) = return str
-extractIDString _        = mzero
-
-extractReserved :: Token -> Parser String
-extractReserved (Reserved str) = return str
-extractReserved _              = mzero
-
-extractKeyword :: Token -> Parser String
-extractKeyword (Keyword str) = return str
-extractKeyword _             = mzero
-
-extractFloatN :: Token -> Parser Double
-extractFloatN (FloatN number) = return number
-extractFloatN _               = mzero
-
-extractInt :: Token -> Parser Integer
-extractInt (SignedN number)   = return number
-extractInt (UnsignedN number) = return number
-extractInt _                  = mzero
-
-extractTypedInstruction :: Token -> Parser (WasmType, String)
-extractTypedInstruction (Keyword str)
-  | Just func <- stripPrefix "i32." str = return (I32, func)
-  | Just func <- stripPrefix "i64." str = return (I64, func)
-  | Just func <- stripPrefix "f32." str = return (F32, func)
-  | Just func <- stripPrefix "f64." str = return (F64, func)
-extractTypedInstruction _               = mzero
-
 isInt :: WasmType -> Bool
 isInt I32 = True
 isInt I64 = True
@@ -191,16 +105,6 @@ isFloat F32 = True
 isFloat F64 = True
 isFloat _   = False
 
-float :: Parser Double
-float = do
-  tkn <- sat isFloatN
-  extractFloatN tkn
-
-int :: Parser Integer
-int = do
-  tkn <- sat isIntN
-  extractInt tkn
--- wrapWasmVal :: Num a -> WasmVal a
 
 -- Parse a function body consisting of a mix of plain and foldedinstructions
 parseBody :: Parser [Instr]
@@ -223,26 +127,24 @@ parseFolded = parens $ do
 parseGetLocal :: Parser Instr
 parseGetLocal = do
   keyword "get_local"
-  return LocalGet <*> idStr
+  return LocalGet <*> identifier
 
 parseConst :: Parser Instr
 parseConst = do
-  keyword <- sat isKeyword
-  (t, i) <- extractTypedInstruction keyword
-  if i /= "const"
-    then
-      mzero
-    else
-      case t of
+  t <- parseType
+  _ <- dot
+  _ <- keyword "const"
+  case t of
         F32 -> Numeric . Parser.Const . F32Val <$> float
         F64 -> Numeric . Parser.Const . F64Val <$> float
-        I32 -> Numeric . Parser.Const . I32Val <$> int
-        I64 -> Numeric . Parser.Const . I64Val <$> int
+        I32 -> Numeric . Parser.Const . I32Val <$> integer
+        I64 -> Numeric . Parser.Const . I64Val <$> integer
 
 parseNumericInstr :: Parser Instr
-parseNumericInstr = parseConst <|> do
-  keyword <- sat isKeyword
-  (t, i) <- extractTypedInstruction keyword
+parseNumericInstr = try parseConst <|> do
+  t <- parseType
+  _ <- dot
+  i <- anyKeyword
   typedInstr <- case t of
     t | isInt t   -> makeII i t
     t | isFloat t -> makeFI i t
@@ -260,6 +162,7 @@ makeII "rem_u" t = return $ Rem t Unsigned
 makeII "and" t   = return $ And t
 makeII "or"  t   = return $ Or t
 makeII "xor" t   = return $ Xor t
+
 makeII str   t   = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
 -- makeFloatInstruction
@@ -272,50 +175,17 @@ makeFI "abs" t = return $ Abs t
 makeFI "neg" t = return $ Neg t
 makeFI str   t = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
-isToken :: Token -> Token -> Bool
-isToken tkn = (== tkn)
-
-isKeyword :: Token -> Bool
-isKeyword (Keyword _) = True
-isKeyword _           = False
-
-isId :: Token -> Bool
-isId (ID _) = True
-isId _      = False
-
-isFloatN :: Token -> Bool
-isFloatN (FloatN _) = True
-isFloatN _          = False
-
-isIntN :: Token -> Bool
-isIntN (SignedN _)   = True
-isIntN (UnsignedN _) = True
-isIntN _             = False
-
--- succeeds if the next token is a keyword with string str, fails otherwise
-keyword :: String -> Parser Token
-keyword str = sat $ isToken (Keyword str)
-
-idStr :: Parser String
-idStr = do
-  id <- sat isId
-  extractIDString id
-
 parseType :: Parser WasmType
-parseType = do
-  tkn <- item
-  typStr <- extractKeyword tkn
-  case typStr of
-    "i32" -> return I32
-    "i64" -> return I64
-    "f32" -> return F32
-    "f64" -> return F64
-    _     -> mzero
+parseType =  (keyword "i32" >> return I32)
+          <|> (keyword "i64" >> return I64)
+          <|> (keyword "f32" >> return F32)
+          <|> (keyword "f64" >> return F64)
+          <|> mzero
 
 param :: Parser Param
 param = parens $ do
-  sat $ isToken (Keyword "param")
-  idstr <- idStr
+  keyword "param"
+  idstr <- identifier
   typ   <- parseType
   return (Param idstr typ)
 
@@ -329,9 +199,9 @@ parseResultType = parens $ do
 function :: Parser Func
 function = parens $ do
   keyword "func"
-  idstr <- idStr
-  params <- many param
-  resultTypes <- many parseResultType
+  idstr <- identifier
+  params <- many $ try param
+  resultTypes <- many $ try parseResultType
   instr  <- parseBody
   return $ Func idstr params $ Block resultTypes instr
 
@@ -343,13 +213,13 @@ parseModule = parens $ do
   functions <- many function
   return (WasmModule functions)
 
-runParser p tkns = case parse p tkns of
-  [(res, [])]      -> res
-  [(res, tkns)]    -> error "Not all tokens were consumed"
-  _              -> error "Parse error"
+watfunc = "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)"
 
--- parseKeyword = parseInstruction
+parseFunc :: Parser a -> String -> a
+parseFunc func str = case parse func "wasm lang" str of
+  Left err  -> error $ "No match: " ++ show err
+  Right val -> val
 
-wattokens = [LP,Keyword "func",ID "add",LP,Keyword "param",ID "lhs",Keyword "i32",RP,LP,Keyword "param",ID "rhs",Keyword "i32",RP,LP,Keyword "result",Keyword "i32",RP,Keyword "get_local",ID "lhs",Keyword "get_local",ID "rhs",Keyword "i32.add",RP]
-
-watfunc = "(func $add (param $lhs i32) (param $rhs i32) (result i32)get_local $lhs get_local $rhs i32.add)"
+parseFuncStr2show str = case parse function "wasm lang" str of
+  Left err  -> "No match: " ++ show err
+  Right val -> show val
