@@ -66,6 +66,22 @@ data WasmVal
   | F64Val Double
   deriving (Show, Eq)
 
+class WasmApplicative a where
+  (<$>) :: (a -> a) -> WasmVal -> WasmVal -> WasmVal
+
+data Applicable a = a :<*> a
+
+infixl 0 <$>
+infixl 1 :<*>
+
+instance WasmApplicative Integer where
+  f <$> (I32Val a) :<*> (I32Val b) = I32Val (f a b)
+  f <$> (I64Val a) :<*> (I64Val b) = I64Val (f a b)
+
+instance WasmApplicative Double where
+  f <$> (F32Val a) :<*> (F32Val b) = F32Val (f a b)
+  f <$> (F64Val a) :<*> (F64Val b) = F64Val (f a b)
+
 getType :: WasmVal -> WasmType
 getType typ = case typ of
   (I32Val _) -> I32
