@@ -8,7 +8,10 @@ import Parser
 import qualified Data.Map as Map
 import qualified Control.Exception as E
 
+import Data.Int
+
 -- |All exceptions that can be thrown by the executor.
+{-# DEPRECATED  WasmArithError "These cases should reduce to traps" #-}
 data ExecutorException
     = TypeError String          -- ^For failed type matching.
     | LookupError String        -- ^For variable lookup errors.
@@ -24,11 +27,78 @@ instance E.Exception ExecutorException
 executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
 executorCatch handler x = E.catch (E.evaluate x) handler
 
+
+
+
+
+{- Types -}
+
+-- data Code = [value]
+
+data ModInst =
+  EmptyInst
+  deriving (Show, Eq)
+
+data Locals =
+  EmptyBindings
+  deriving (Show, Eq)
+
+data Frame =
+  FrameT ModInst Locals
+  deriving (Show, Eq)
+
+type Stack a = [a]
+
+data Code =
+  Code (Stack WasmVal) [AdminInstr]
+  deriving (Show, Eq)
+
+data Closure =
+  Closure ModInst Func
+  deriving (Show, Eq)
+
+data AdminInstr =
+    Plain Instr
+  | Invoke Closure
+  | Trapping String {- Trap with error message -}
+  | Returning (Stack WasmVal)
+  | Breaking Int32 (Stack WasmVal)
+  -- | Label of int * instr list * code
+  | Frame Frame Code
+  deriving (Show, Eq)
+
+
+data Config =
+  Config Frame Code
+  deriving (Show, Eq)
+
+{- reduction -}
+
+step :: Config -> Config
+step (Config frame (Code vs es)) = do
+  let (vs', es') = case (head es, vs) of
+                      (Plain e', vs) ->
+                        case (e', vs) of
+                          (Nop, vs) ->
+                            (vs, [])
+
+                          {- TODO: factor Numeric (binary, unary etc. out into its own function/file-}
+                          (Numeric e', v2 : v1 : vs') ->
+                              case e' of
+                                (Add typ) -> (binOp typ v1 v2 (+) (+) : vs', [])
+                                _     -> error "unimplemented numeric"
+
+                      _ -> error "unimplemented instruction"
+
+  Config frame (Code vs' (es' ++ tail es))
+
+
 -- |Interprets and executes the given wasm function using the given list of
 --  WasmVal parameters.
 --  If the parameter list does not match the required parameters of the function
 --  definition a TypeError is thrown. ExecutorExceptions are also thrown if
 --  instructions in the function are not supported or lead to run-time errors.
+{-# DEPRECATED  execFunc "Use step instead" #-}
 execFunc :: Func -> [WasmVal] -> [WasmVal]
 execFunc (Func name params block) vals
     | validParams params vals =
@@ -41,6 +111,7 @@ execFunc (Func name params block) vals
 --  environment by executing the instructions in the given block.
 --  An ExecutorException might be thrown if instructions in the function are not
 --  supported or lead to run-time errors.
+{-# DEPRECATED  execBlock "Use step instead" #-}
 execBlock :: Block -> [WasmVal] -> Map.Map String WasmVal ->
     ([WasmVal], Map.Map String WasmVal)
 execBlock (Block res []) stack locals
@@ -78,6 +149,7 @@ valsOfType vals types =
 --  Throws a NotImplemented if there is no implementation for the given Instr.
 --  Throws a LookupError if the Instr cannot be executed within this
 --  environment.
+{-# DEPRECATED  execInstr "Use step instead" #-}
 execInstr :: Instr -> [WasmVal] -> Map.Map String WasmVal ->
     ([WasmVal], Map.Map String WasmVal)
 execInstr (EnterBlock block) stack locals = execBlock block stack locals
