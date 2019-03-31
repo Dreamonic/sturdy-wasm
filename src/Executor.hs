@@ -80,8 +80,8 @@ step c@(Config frame (Code vs es)) = do
   Config frame (Code vs' (es' ++ tail es))
 
 -- |Intermediate step function
--- takes admin_instr and a value stack
--- returns the modified value stack
+--  takes admin_instr and a value stack
+--  returns the modified value stack
 step' :: AdminInstr -> Stack WasmVal -> Config -> (Stack WasmVal, [AdminInstr])
 
 -- Definitions for plain instructions
@@ -164,7 +164,7 @@ step' (Label n innerInstr code') vs c =
 step' _ _ _ = error "Not implemented"
 
 -- |Evaluates code under given context
--- based on proposition 4.2 evalution should either
+--  based on proposition 4.2 evalution should either
 --    * return value stack
 --    * trap
 --    * modify context
