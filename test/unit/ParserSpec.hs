@@ -4,6 +4,7 @@ import Test.QuickCheck
 import Test.Hspec
 import Parser
 import Lexer
+import WasmTypes
 
 -- Test suites --
 
