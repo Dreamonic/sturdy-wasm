@@ -50,7 +50,7 @@ data Frame =
 type Stack a = [a]
 
 data Code =
-  Code (Stack WasmVal) [AdminInstr]
+  Code { codeStack :: (Stack WasmVal), codeEs :: [AdminInstr]}
   deriving (Show, Eq)
 
 data Closure =
@@ -63,35 +63,116 @@ data AdminInstr =
   | Trapping String {- Trap with error message -}
   | Returning (Stack WasmVal)
   | Breaking Int32 (Stack WasmVal)
-  -- | Label of int * instr list * code
+  | Label Int32 [Instr] Code
   | Frame Frame Code
   deriving (Show, Eq)
 
 
 data Config =
-  Config Frame Code
+  Config { confFrame :: Frame, confCode :: Code }
   deriving (Show, Eq)
 
 {- reduction -}
 
 step :: Config -> Config
-step (Config frame (Code vs es)) = do
-  let (vs', es') = case (head es, vs) of
-                      (Plain e', vs) ->
-                        case (e', vs) of
-                          (Nop, vs) ->
-                            (vs, [])
-
-                          {- TODO: factor Numeric (binary, unary etc. out into its own function/file-}
-                          (Numeric e', v2 : v1 : vs') ->
-                              case e' of
-                                (Add typ) -> (binOp typ v1 v2 (+) (+) : vs', [])
-                                _     -> error "unimplemented numeric"
-
-                      _ -> error "unimplemented instruction"
-
+step c@(Config frame (Code vs es)) = do
+  let (vs', es') = step' (head es) vs c
   Config frame (Code vs' (es' ++ tail es))
 
+-- |Intermediate step function
+-- takes admin_instr and a value stack
+-- returns the modified value stack
+step' :: AdminInstr -> Stack WasmVal -> Config -> (Stack WasmVal, [AdminInstr])
+
+-- Definitions for plain instructions
+step' (Plain e) vs _ = case (e, vs) of
+  (Nop, vs) ->
+    (vs, [])
+
+  (Unreachable, vs) ->
+    (vs, [Trapping "unreachable code executed"])
+
+  {- TODO: factor Numeric (binary, unary etc. out into its own function/file-}
+  (Numeric e', v2 : v1 : vs') ->
+    case e' of
+      (Add typ) -> (binOp typ v1 v2 (+) (+) : vs', [])
+      _     -> error "unimplemented numeric"
+
+  ((Bl inputTypes instructions), vs) -> do
+    let inputLen = fromIntegral $ length inputTypes :: Int32
+    let code = Code [] (map Plain instructions)   -- ^map instructions in block to admin_instr
+    (vs, [Label inputLen [] code])
+
+  ((Loop inputTypes instructions), vs) -> do
+    let code = Code [] (map Plain instructions)
+    (vs, [Label 0 [e] code])                      -- ^add loop instr e inside inner label
+
+  ((If inputTypes trueBl elseBl), (I32Val 0):vs') ->
+    (vs', [Plain (Bl inputTypes elseBl)])
+
+  ((If inputTypes trueBl elseBl), (I32Val _):vs') ->
+    (vs', [Plain (Bl inputTypes trueBl)])
+
+  ((Br x), vs) ->
+    ([], [Breaking x vs])
+
+  ((BrIf _), (I32Val 0):vs') ->
+    (vs', [])
+
+  ((BrIf x), (I32Val _):vs') ->
+    (vs', [Plain (Br x)])
+
+-- Breaking with no encapsulating label
+-- should throw an error
+step' (Breaking _ _) _  _ = error "undefined label"
+
+-- End of label
+-- should continue evalution
+step' (Label _ _ (Code vs' [])) vs _ =
+  (vs' ++ vs, [])
+
+-- Trap inside label
+-- current stack and msg is returned
+step' (Label _ _ (Code _ ((Trapping msg):_))) vs _ =
+  (vs, [Trapping msg])
+
+-- Return inside label
+-- current stack and return stack are returned
+step' (Label _ _ (Code _ ((Returning vs'):_))) vs _ =
+  (vs, [Returning vs'])
+
+-- 'Break' to end of this label
+-- the required amount of values are popped from the inner stack
+-- and pushed on the outer stack
+-- if the label has inside instructions (Loop does this)
+-- the inside instructions are returned
+step' (Label n inner (Code _ ((Breaking 0 retStack):_))) vs _ =
+  ((take (fromIntegral n :: Int) retStack) ++ vs, map Plain inner)
+
+-- 'Break' k label layers up
+-- returns new Breaking instr with k-1
+step' (Label _ _ (Code _ ((Breaking k retStack):_))) vs _ =
+  (vs, [Breaking (k - 1) retStack])
+
+-- Continue evaluation of instructions inside label
+-- step code inside label in context of current config
+-- return Label with resulting code
+step' (Label n innerInstr code') vs c =
+  let c' = step $ c { confCode = code' }        -- ^Step under c with the code inside label
+  in (vs, [Label n innerInstr $ confCode c'])
+
+step' _ _ _ = error "Not implemented"
+
+-- |Evaluates code under given context
+-- based on proposition 4.2 evalution should either
+--    * return value stack
+--    * trap
+--    * modify context
+eval :: Config -> Stack WasmVal
+eval c@(Config _ (Code vs es)) = case es of
+  [] -> vs
+  (Trapping msg):_ -> error msg -- ^ TODO: change to other type of error handling
+  _ -> eval $ step c
 
 -- |Interprets and executes the given wasm function using the given list of
 --  WasmVal parameters.
@@ -152,10 +233,10 @@ valsOfType vals types =
 {-# DEPRECATED  execInstr "Use step instead" #-}
 execInstr :: Instr -> [WasmVal] -> Map.Map String WasmVal ->
     ([WasmVal], Map.Map String WasmVal)
-execInstr (EnterBlock block) stack locals = execBlock block stack locals
-execInstr (If instr) (x:stack) locals
-    | valToBool x = execInstr instr stack locals
-    | otherwise   = (stack, locals)
+--execInstr (EnterBlock block) stack locals = execBlock block stack locals
+--execInstr (If instr) (x:stack) locals
+--    | valToBool x = execInstr instr stack locals
+--    | otherwise   = (stack, locals)
 execInstr (LocalGet tag) stack locals = case Map.lookup tag locals of
     Just val -> (val:stack, locals)
     Nothing -> E.throw (LookupError $ "on local var \"" ++ tag ++ "\".")

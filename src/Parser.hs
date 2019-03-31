@@ -23,7 +23,7 @@ import           Control.Monad
 import           Lexer
 
 import Data.List
-
+import Data.Int
 
 data WasmType
   = I32
@@ -33,16 +33,18 @@ data WasmType
   deriving (Show, Eq)
 
 data Instr
-  = EnterBlock Block
-  | Branch Integer
-  | If Instr
-  | Loop Instr
+  = Nop
+  | Unreachable
+  | Bl [WasmType] [Instr]
+  | Loop [WasmType] [Instr]
+  | If [WasmType] [Instr] [Instr]
+  | Br Int32
+  | BrIf Int32
   | Call String
   | LocalGet String
   | LocalSet String
   | LocalTee String
   | Numeric TypedInstr
-  | Nop
   deriving (Show, Eq)
 
 data TypedInstr
