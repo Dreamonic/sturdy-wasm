@@ -98,20 +98,20 @@ step' (Plain e) vs _ = case (e, vs) of
       (Add typ) -> (binOp typ v1 v2 (+) (+) : vs', [])
       _     -> error "unimplemented numeric"
 
-  ((Bl inputTypes instructions), vs) -> do
-    let inputLen = fromIntegral $ length inputTypes :: Int32
+  ((Bl resultTypes instructions), vs) -> do
+    let inputLen = fromIntegral $ length resultTypes :: Int32
     let code = Code [] (map Plain instructions)   -- ^map instructions in block to admin_instr
     (vs, [Label inputLen [] code])
 
-  ((Loop inputTypes instructions), vs) -> do
+  ((Loop _ instructions), vs) -> do
     let code = Code [] (map Plain instructions)
     (vs, [Label 0 [e] code])                      -- ^add loop instr e inside inner label
 
-  ((If inputTypes trueBl elseBl), (I32Val 0):vs') ->
-    (vs', [Plain (Bl inputTypes elseBl)])
+  ((If resultTypes trueBl elseBl), (I32Val 0):vs') ->
+    (vs', [Plain (Bl resultTypes elseBl)])
 
-  ((If inputTypes trueBl elseBl), (I32Val _):vs') ->
-    (vs', [Plain (Bl inputTypes trueBl)])
+  ((If resultTypes trueBl elseBl), (I32Val _):vs') ->
+    (vs', [Plain (Bl resultTypes trueBl)])
 
   ((Br x), vs) ->
     ([], [Breaking x vs])
