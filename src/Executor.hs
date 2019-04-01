@@ -186,7 +186,7 @@ step' (Label n innerInstr code') vs c@(Config frame _) =
 
 step' (Invoke (Closure _ (Func name params (Block _ instr)))) vs (Config frame _) =
   let (frame', vs') = addBinds frame params vs
-  in (frame, (eval (Config frame' (Code [] (fmap makePlain instr)))) ++ vs', [])
+  in (frame, (eval (Config frame' (Code [] (fmap Plain instr)))) ++ vs', [])
 
 step' err _ _ = error $"Not implemented" ++ show err
 
@@ -208,9 +208,6 @@ execRed (Func name params block) =
 
 stackToConfig :: Stack WasmVal -> Config
 stackToConfig vs = Config (FrameT EmptyInst Map.empty) (Code vs [])
-
-makePlain :: Instr -> AdminInstr
-makePlain instr = Plain instr
 
 extractStack :: Config -> Stack WasmVal
 extractStack (Config frame (Code vs es)) = vs
@@ -271,4 +268,5 @@ binOp typ x y opI opF
         (F64Val a, F64Val b) -> F64Val (a `opF` b)
         (_, _) -> E.throw (TypeError "binOp on two different types.")
     | otherwise = E.throw (TypeError "binOp type does not match arg type.")
+
 
