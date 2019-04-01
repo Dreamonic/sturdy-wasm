@@ -81,7 +81,8 @@ parseBody = do
 parseInstruction 
   = parseBlock 
   <|> parseLoop
-  <|> parseBranch 
+  <|> parseBranch
+  <|> parseIf
   <|> parseGetLocal 
   <|> parseSetLocal 
   <|> parseNumericInstr 
@@ -110,6 +111,16 @@ parseBranch :: Parser Instr
 parseBranch = 
   (keyword "br" >> return Br <*> integer)
   <|> (keyword "br_if" >> return BrIf <*> integer)
+
+parseIf :: Parser Instr
+parseIf = do
+  keyword "if"
+  t <- many $ parseResultType
+  instrT <- many $ parseInstruction
+  keyword "else"
+  instrF <- many $ parseInstruction
+  keyword "end"
+  return $ If (fmap (\(Result x) -> x) t) instrT instrF
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do

@@ -24,6 +24,7 @@ tsFunctions = describe "functions" $ do
     testT5
     testT6
     testT7
+    testT8
     -- testPrint
 
 
@@ -140,3 +141,19 @@ testPrint = it "Print" $ functionT6 `shouldBe` Func "" [] (Block [] [])
 testT6 = it "Loop test" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT6)]))
     `shouldBe` [I32Val 4]
+
+programT8 = "(func $add (param $x i32) (result i32)\n\
+    \i32.const 0\n\
+    \if (result i32)\n\
+        \i32.const 2\n\
+    \else\n\
+        \i32.const 3\n\
+    \end\n\
+    \)"
+
+functionT8 = do 
+    parseFunc Parser.function programT8
+
+testT8 = it "Loop test" $
+    eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT8)]))
+    `shouldBe` [I32Val 3]

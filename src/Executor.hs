@@ -182,7 +182,7 @@ step' (Label n instr (Code vs' ((Breaking k retStack):es))) vs (Config frame _) 
 -- return Label with resulting code
 step' (Label n innerInstr code') vs c@(Config frame _) =
   let (Config frame' (Code vs' c')) = step $ c { confCode = code' }        -- ^Step under c with the code inside label
-  in (frame', vs', [Label n innerInstr (Code vs' c')])
+  in (frame', vs, [Label n innerInstr (Code vs' c')])
 
 step' (Invoke (Closure _ (Func name params (Block _ instr)))) vs (Config frame _) =
   let (frame', vs') = addBinds frame params vs
