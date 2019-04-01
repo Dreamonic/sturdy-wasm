@@ -66,3 +66,4 @@ tests:
     - hspec
     - hspec-discover
     - QuickCheck
+    - containers

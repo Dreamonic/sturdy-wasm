@@ -71,8 +71,8 @@ data AdminInstr =
   | Invoke Closure
   | Trapping String {- Trap with error message -}
   | Returning (Stack WasmVal)
-  | Breaking Int32 (Stack WasmVal)
-  -- | Label of int * instr list * code
+  | Breaking Integer (Stack WasmVal)
+  | Label [AdminInstr] Code
   | Frame Frame Code
   deriving (Show, Eq)
 
@@ -99,6 +99,12 @@ step (Config frame (Code vs es)) = do
                           (Nop, vs) ->
                             (frame, vs, [])
 
+                          (EnterBlock (Block ts es'), vs) ->
+                            (frame, vs, [Label [] (Code vs (fmap makePlain es'))])
+                          
+                          (Loop (Block ts es'), vs) ->
+                            (frame, vs, [Label [Plain e'] (Code vs (fmap makePlain es'))])
+
                           {- TODO: factor Numeric (binary, unary etc. out into its own function/file-}
                           {- Binary Instructions -}
                           (Numeric e', v2 : v1 : vs') ->
@@ -121,14 +127,37 @@ step (Config frame (Code vs es)) = do
                           (LocalSet e', vs) ->
                               case vs of
                                 v : vs' -> (addBind frame e' v, vs', [])
+                          
+                          (Branch e', vs) ->
+                              (frame, vs, [Breaking e' vs])
+
+                          (BranchIf e', v:vs) -> 
+                              case v of
+                                I32Val 0 -> (frame, vs, [])
+                                I32Val _ -> (frame, vs, [Breaking e' vs])
                               
                           err -> error $ "unimplemented plain: " ++ show err
                       
+                      {- Labels -}
+                      (Label es0 (Code vs' []), vs) ->
+                        (frame, vs' ++ vs, [])
+
+                      (Label es0 (Code vs' ((Breaking 1 vs''):_)), vs) ->
+                        (frame, vs, [])
+
+                      (Label es0 (Code vs' ((Breaking 0 vs''):_)), vs) ->
+                        (frame, vs, es0)
+
+                      (Label es0 c, vs) ->
+                        let (Config frame' c') = step (Config frame c) in
+                        (frame', vs, [Label es0 c'])
+
                       {- Invoke instructions -}
                       (Invoke (Closure _ (Func name params (Block _ instr))), vs) -> 
                           let (frame', vs') = addBinds frame params vs
                           in (frame, extractStack (execute (Config frame' (Code [] (fmap makePlain instr)))) ++ vs', [])
-                        
+                  
+
 
                       err -> error $ "unimplemented instruction: " ++ show err
 

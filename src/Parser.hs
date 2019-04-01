@@ -25,8 +25,9 @@ import WasmTypes(WasmType(..), WasmVal(..))
 data Instr
   = EnterBlock Block
   | Branch Integer
+  | BranchIf Integer
   | If Instr
-  | Loop Instr
+  | Loop Block
   | Call String
   | LocalGet String
   | LocalSet String
@@ -76,7 +77,14 @@ parseBody = do
     rest <- parseBody <|> return []
     return $ instructions ++ rest
 
-parseInstruction = parseGetLocal <|> parseSetLocal <|> parseNumericInstr <|> parens parseInstruction
+parseInstruction 
+  = parseBlock 
+  <|> parseLoop
+  <|> parseBranch 
+  <|> parseGetLocal 
+  <|> parseSetLocal 
+  <|> parseNumericInstr 
+  <|> parens parseInstruction
 
 -- Parse instructions that are folded into an S-expression
 parseFolded :: Parser [Instr]
@@ -85,6 +93,22 @@ parseFolded = parens $ do
   operands <- many parseFolded
   return $ concat operands ++ [instruction]
 
+parseBlock :: Parser Instr
+parseBlock = do
+  keyword "block"
+  instr <- parseBody
+  return $ EnterBlock (Block [] instr)
+
+parseLoop :: Parser Instr
+parseLoop = do
+  keyword "loop"
+  instr <- parseBody
+  return $ Loop (Block [] instr)
+
+parseBranch :: Parser Instr
+parseBranch = 
+  (keyword "br" >> return Branch <*> integer)
+  <|> (keyword "br_if" >> return BranchIf <*> integer)
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
