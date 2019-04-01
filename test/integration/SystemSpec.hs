@@ -16,7 +16,6 @@ spec = do
 -- Linking tests to Test Suites --
 
 tsFunctions = describe "functions" $ do
-    testSimpleAddition
     testStep
     testT
     testT2
@@ -29,17 +28,7 @@ tsFunctions = describe "functions" $ do
 
 -- Tests --  
 
-programAdd = "(func $add (param $a i32) (param $b i32) \n\
-                \(result i32)\n\
-                \get_local $a\n\
-                \get_local $b\n\
-                \i32.add)"
 
-functionAdd = parseFunc Parser.function programAdd
-
-testSimpleAddition = it "Parse a function which does addition" $
-    property $ \(x,y) -> execFunc functionAdd [I32Val (x::Integer), I32Val (y::Integer)] `shouldBe` [I32Val (x+y)]
-     
 testStep = it "Test the step function for add" $
     step (Config (FrameT EmptyInst Map.empty) (Code [I32Val 1, I32Val 2] [Plain (Numeric (Add I32))])) `shouldBe`
     (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] []))
@@ -64,8 +53,8 @@ programT2 = "(func $add (param $a i32)\n\
 functionT2 = parseFunc Parser.function programT2
 
 testT2 = it "Test using local variables" $
-    execute (Config (FrameT EmptyInst Map.empty) (Code [I32Val 2] [Invoke (Closure EmptyInst functionT2)]))
-    `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 5] []))
+    eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 2] [Invoke (Closure EmptyInst functionT2)]))
+    `shouldBe` [I32Val 5]
 
 programT3 = "(func $add (param $a i32)\n\
     \(result i32)\n\
@@ -78,8 +67,8 @@ programT3 = "(func $add (param $a i32)\n\
 functionT3 = parseFunc Parser.function programT3
 
 testT3 = it "Test setting local variables" $
-    execute (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] [Invoke (Closure EmptyInst functionT3)]))
-    `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 4] []))
+    eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] [Invoke (Closure EmptyInst functionT3)]))
+    `shouldBe` [I32Val 4]
 
 programT4 = "(func $add\n\
     \(result i32)\n\
@@ -90,8 +79,8 @@ programT4 = "(func $add\n\
 functionT4 = parseFunc Parser.function programT4
 
 testT4 = it "Test equals" $
-    execute (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst functionT4)]))
-    `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 1] []))
+    eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst functionT4)]))
+    `shouldBe` [I32Val 1]
 
 programT5 = "(func $add\n\
     \(result i32)\n\
@@ -102,8 +91,8 @@ programT5 = "(func $add\n\
 functionT5 = parseFunc Parser.function programT5
 
 testT5 = it "Test equals" $
-    execute (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst functionT5)]))
-    `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] []))
+    eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst functionT5)]))
+    `shouldBe` [I32Val 0]
 
 
 programT7 = "(func $add (param $a i32)\n\
@@ -121,8 +110,8 @@ programT7 = "(func $add (param $a i32)\n\
 functionT7 = parseFunc Parser.function programT7
 
 testT7 = it "Test block" $
-    execute (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] [Invoke (Closure EmptyInst functionT7)]))
-    `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 5] []))
+    eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] [Invoke (Closure EmptyInst functionT7)]))
+    `shouldBe` [I32Val 5]
 
 
 programT6 = "(func $add (param $x i32) (result i32)\n\
@@ -145,5 +134,5 @@ programT6 = "(func $add (param $x i32) (result i32)\n\
 functionT6 = parseFunc Parser.function programT6
 
 testT6 = it "Loop test" $
-    execute (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT6)]))
-    `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 4] []))
+    eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT6)]))
+    `shouldBe` [I32Val 4]

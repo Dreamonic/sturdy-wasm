@@ -23,17 +23,18 @@ import Data.List
 import WasmTypes(WasmType(..), WasmVal(..))
 
 data Instr
-  = EnterBlock Block
-  | Branch Integer
-  | BranchIf Integer
-  | If Instr
-  | Loop Block
+  = Bl [WasmType] [Instr]
+  | Br Integer
+  | BrIf Integer
+  | If [WasmType] [Instr] [Instr]
+  | Loop [WasmType] [Instr]
   | Call String
   | LocalGet String
   | LocalSet String
   | LocalTee String
   | Numeric TypedInstr
   | Nop
+  | Unreachable
   deriving (Show, Eq)
 
 data TypedInstr
@@ -97,18 +98,18 @@ parseBlock :: Parser Instr
 parseBlock = do
   keyword "block"
   instr <- parseBody
-  return $ EnterBlock (Block [] instr)
+  return $ Bl [] instr
 
 parseLoop :: Parser Instr
 parseLoop = do
   keyword "loop"
   instr <- parseBody
-  return $ Loop (Block [] instr)
+  return $ Loop [] instr
 
 parseBranch :: Parser Instr
 parseBranch = 
-  (keyword "br" >> return Branch <*> integer)
-  <|> (keyword "br_if" >> return BranchIf <*> integer)
+  (keyword "br" >> return Br <*> integer)
+  <|> (keyword "br_if" >> return BrIf <*> integer)
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
