@@ -15,6 +15,7 @@ module Executor
 
 import Parser
 import WasmTypes
+import Debug.Trace
 import qualified Data.Map as Map
 import qualified Control.Exception as E
 
@@ -84,6 +85,7 @@ data Config =
 step :: Config -> Config
 step c@(Config frame (Code vs es)) = do
   let (frame', vs', es') = step' (head es) vs c
+  -- traceShow (frame', vs', es') $ 
   Config frame' (Code vs' (es' ++ tail es))
 
 -- |Intermediate step function
@@ -172,21 +174,21 @@ step' (Label n inner (Code _ ((Breaking 0 retStack):_))) vs (Config frame _) =
 
 -- 'Break' k label layers up
 -- returns new Breaking instr with k-1
-step' (Label _ _ (Code _ ((Breaking k retStack):_))) vs (Config frame _) =
+step' (Label n instr (Code vs' ((Breaking k retStack):es))) vs (Config frame _) =
   (frame, vs, [Breaking (k - 1) retStack])
 
 -- Continue evaluation of instructions inside label
 -- step code inside label in context of current config
 -- return Label with resulting code
 step' (Label n innerInstr code') vs c@(Config frame _) =
-  let c' = step $ c { confCode = code' }        -- ^Step under c with the code inside label
-  in (frame, vs, [Label n innerInstr $ confCode c'])
+  let (Config frame' (Code vs' c')) = step $ c { confCode = code' }        -- ^Step under c with the code inside label
+  in (frame', vs', [Label n innerInstr (Code vs' c')])
 
 step' (Invoke (Closure _ (Func name params (Block _ instr)))) vs (Config frame _) =
   let (frame', vs') = addBinds frame params vs
   in (frame, (eval (Config frame' (Code [] (fmap makePlain instr)))) ++ vs', [])
 
-step' _ _ _ = error "Not implemented"
+step' err _ _ = error $"Not implemented" ++ show err
 
 -- |Evaluates code under given context
 --  based on proposition 4.2 evalution should either
