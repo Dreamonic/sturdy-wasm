@@ -40,11 +40,12 @@ loadFile map filename = do
 
 callFunc :: Map.Map String Func -> [String] -> IO ()
 callFunc map (f:xs) = do
-    func <- return $ case Map.lookup ('$':f) map of
-        Just x -> x
-        Nothing -> error "Function not loaded"
-    vs <- return $ execFunc (toWasmVals xs) func
-    putStrLn ("Result: " ++ show vs)
+    func <- return $ Map.lookup ('$':f) map
+    case func of
+        Just x -> do 
+            vs <- return $ execFunc (toWasmVals xs) x
+            putStrLn ("Result: " ++ show vs)
+        Nothing -> putStrLn("Function " ++ f ++ " not loaded")
     wasmRepl map
 
 getFuncName :: Func -> String
