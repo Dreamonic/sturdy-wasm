@@ -25,7 +25,7 @@ tsFunctions = describe "functions" $ do
     testT6
     testT7
     testT8
-    -- testPrint
+    testNestedBlocks
 
 
 -- Tests --  
@@ -104,7 +104,8 @@ programT7 = "(func $add (param $a i32)\n\
     \set_local $a\n\
     \br 0\n\
     \i32.const 1\n\
-    \set_local $a)\n\
+    \set_local $a\n\
+    \end)\n\
     \get_local $a\n\
     \i32.const 3\n\
     \i32.add)"
@@ -128,8 +129,8 @@ programT6 = "(func $add (param $x i32) (result i32)\n\
         \i32.eq\n\
         \br_if 1\n\
         \br 0\n\
-    \)\n\
-    \)\n\
+    \end)\n\
+    \end)\n\
     \get_local $x\n\
     \)"
 
@@ -157,3 +158,25 @@ functionT8 = do
 testT8 = it "Loop test" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT8)]))
     `shouldBe` [I32Val 3]
+
+programNestedBlocks = "(func $add (param $x i32) (result i32)\n\
+    \(block\n\
+        \i32.const 0\n\
+        \set_local $x\n\
+        \(block\n\
+            \br 1\n\
+            \i32.const 2\n\
+            \set_local $x\n\
+        \end)\n\
+        \i32.const 1\n\
+        \set_local $x\n\
+    \end)\n\
+    \get_local $x\n\
+    \)"
+
+functionNestedBlocks = 
+    parseFunc Parser.function programNestedBlocks
+
+testNestedBlocks = it "Test nested blocks" $
+    eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val (-1)] [Invoke (Closure EmptyInst functionNestedBlocks)]))
+    `shouldBe` [I32Val 0]

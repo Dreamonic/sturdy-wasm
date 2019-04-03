@@ -1,5 +1,6 @@
 module Executor
   ( execRed
+  , execFunc
   , eval
   , ExecutorException(..)
   , executorCatch
@@ -37,8 +38,6 @@ instance E.Exception ExecutorException
 --  possible thrown by the given expression.
 executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
 executorCatch handler x = E.catch (E.evaluate x) handler
-
-
 
 
 {- Types -}
@@ -202,6 +201,9 @@ eval c@(Config _ (Code vs es)) = case es of
   _ -> eval $ step c
 
 {- reduction -}
+execFunc :: [WasmVal] -> Func -> Stack WasmVal
+execFunc vs f = eval (Config (FrameT EmptyInst Map.empty) (Code vs [Invoke (Closure EmptyInst f)]))
+
 execRed :: Func -> Config
 execRed (Func name params block) = 
   stackToConfig $ eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst (Func name params block))]))

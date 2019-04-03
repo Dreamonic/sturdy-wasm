@@ -7,6 +7,7 @@ import              System.Environment
 import              Data.List
 import qualified    Data.Text as T (strip, pack, unpack)
 import              System.IO
+import              Embedder
 
 -- |Cleans up WAST
 cleanInput :: String -> String
@@ -33,4 +34,5 @@ execute filename = do
     print $ parseFunc Parser.function $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
-someFunc = parseArgs =<< getArgs
+someFunc = runWasmRepl
+-- someFunc = parseArgs =<< getArgs
