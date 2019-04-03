@@ -1,14 +1,28 @@
 module Executor
-  ( execFunc
+  ( execRed
+  , eval
   , ExecutorException(..)
   , executorCatch
+  , step
+  , Config(..)
+  , ModInst(..)
+  , Locals(..)
+  , Frame(..)
+  , Code(..)
+  , AdminInstr(..)
+  , Closure(..)
   ) where
 
 import Parser
+import WasmTypes
+import Debug.Trace
 import qualified Data.Map as Map
 import qualified Control.Exception as E
 
+import Data.Int
+
 -- |All exceptions that can be thrown by the executor.
+{-# DEPRECATED  WasmArithError "These cases should reduce to traps" #-}
 data ExecutorException
     = TypeError String          -- ^For failed type matching.
     | LookupError String        -- ^For variable lookup errors.
@@ -24,32 +38,193 @@ instance E.Exception ExecutorException
 executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
 executorCatch handler x = E.catch (E.evaluate x) handler
 
--- |Interprets and executes the given wasm function using the given list of
---  WasmVal parameters.
---  If the parameter list does not match the required parameters of the function
---  definition a TypeError is thrown. ExecutorExceptions are also thrown if
---  instructions in the function are not supported or lead to run-time errors.
-execFunc :: Func -> [WasmVal] -> [WasmVal]
-execFunc (Func name params block) vals
-    | validParams params vals =
-        let kvPairs = zipWith (\(Param name _) x -> (name, x)) params vals
-        in fst (execBlock block [] (Map.fromList kvPairs))
-    | otherwise = E.throw (TypeError $ (show vals) ++ " stack does not match "
-        ++ "params " ++ (show params) ++ " of func " ++ name ++ ".")
 
--- |Returns a modification of the given WasmVal stack and execution
---  environment by executing the instructions in the given block.
---  An ExecutorException might be thrown if instructions in the function are not
---  supported or lead to run-time errors.
-execBlock :: Block -> [WasmVal] -> Map.Map String WasmVal ->
-    ([WasmVal], Map.Map String WasmVal)
-execBlock (Block res []) stack locals
-    | validResults res (reverse stack) = (reverse stack, locals)
-    | otherwise = E.throw (TypeError $ (show stack) ++ " stack does not match"
-        ++ "results " ++ (show res) ++ " of block.")
-execBlock (Block res (i:is)) stack locals =
-    let update = execInstr i stack locals
-    in  execBlock (Block res (is)) (fst update) (snd update)
+
+
+{- Types -}
+
+-- data Code = [value]
+
+data ModInst =
+  EmptyInst
+  deriving (Show, Eq)
+
+type Locals = Map.Map String WasmVal
+
+data Frame =
+  FrameT ModInst Locals
+  deriving (Show, Eq)
+
+type Stack a = [a]
+
+data Code =
+  Code { codeStack :: (Stack WasmVal), codeEs :: [AdminInstr]}
+  deriving (Show, Eq)
+
+data Closure =
+  Closure ModInst Func
+  deriving (Show, Eq)
+
+data AdminInstr =
+    Plain Instr
+  | Invoke Closure
+  | Trapping String {- Trap with error message -}
+  | Returning (Stack WasmVal)
+  | Breaking Integer (Stack WasmVal)
+  | Label Int [Instr] Code
+  | Frame Frame Code
+  deriving (Show, Eq)
+
+
+data Config =
+  Config { confFrame :: Frame, confCode :: Code }
+  deriving (Show, Eq)
+
+{- reduction -}
+
+step :: Config -> Config
+step c@(Config frame (Code vs es)) = do
+  let (frame', vs', es') = step' (head es) vs c
+  -- traceShow (frame', vs', es') $ 
+  Config frame' (Code vs' (es' ++ tail es))
+
+-- |Intermediate step function
+--  takes admin_instr and a value stack
+--  returns the modified value stack
+step' :: AdminInstr -> Stack WasmVal -> Config -> (Frame, Stack WasmVal, [AdminInstr])
+
+-- Definitions for plain instructions
+step' (Plain e) vs (Config frame _) = case (e, vs) of
+  (Nop, vs) ->
+    (frame, vs, [])
+
+  (Unreachable, vs) ->
+    (frame, vs, [Trapping "unreachable code executed"])
+
+  {- TODO: factor Numeric (binary, unary etc. out into its own function/file-}
+  (Numeric e', v2 : v1 : vs') ->
+    case e' of
+      (Add typ) -> (frame, (((+) <|> (+)) <%> (v1 <:*:> v2)) : vs', [])
+      (Sub typ) -> (frame, (((-) <|> (-)) <%> (v1 <:*:> v2)) : vs', [])
+      (Mul typ) -> (frame, (((*) <|> (*)) <%> (v1 <:*:> v2)) : vs', [])
+      (Div typ Signed) -> (frame, ((div <|> (/)) <%> (v1 <:*:> v2)) : vs', [])
+      (Eql typ) -> (frame, (((==) <=> (==)) <%> (v1 <:*:> v2)) : vs', [])
+      err     -> error ("unimplemented numeric: " ++ show err)
+
+  (Numeric e', vs) ->
+    case e' of
+      (Const v) -> (frame, v : vs, [])
+      err     -> error ("unimplemented numeric: " ++ show err)
+
+  ((Bl resultTypes instructions), vs) -> do
+    let inputLen = length resultTypes
+    let code = Code [] (map Plain instructions)   -- ^map instructions in block to admin_instr
+    (frame, vs, [Label inputLen [] code])
+
+  ((Loop _ instructions), vs) -> do
+    let code = Code [] (map Plain instructions)
+    (frame, vs, [Label 0 [e] code])                      -- ^add loop instr e inside inner label
+
+  ((If resultTypes trueBl elseBl), (I32Val 0):vs') ->
+    (frame, vs', [Plain (Bl resultTypes elseBl)])
+
+  ((If resultTypes trueBl elseBl), (I32Val _):vs') ->
+    (frame, vs', [Plain (Bl resultTypes trueBl)])
+
+  ((Br x), vs) ->
+    (frame, [], [Breaking x vs])
+
+  ((BrIf _), (I32Val 0):vs') ->
+    (frame, vs', [])
+
+  ((BrIf x), (I32Val _):vs') ->
+    (frame, vs', [Plain (Br x)])
+
+  (LocalGet e', vs) ->
+    (frame, (findLocal e' frame):vs, [])
+
+  (LocalSet e', vs) ->
+    case vs of
+      v : vs' -> (addBind frame e' v, vs', [])
+  
+  err -> error $ "unimplemented plain: " ++ show err
+
+-- End of label
+-- should continue evalution
+step' (Label _ _ (Code vs' [])) vs (Config frame _) =
+  (frame, vs' ++ vs, [])
+
+-- Trap inside label
+-- current stack and msg is returned
+step' (Label _ _ (Code _ ((Trapping msg):_))) vs (Config frame _) =
+  (frame, vs, [Trapping msg])
+
+-- Return inside label
+-- current stack and return stack are returned
+step' (Label _ _ (Code _ ((Returning vs'):_))) vs (Config frame _) =
+  (frame, vs, [Returning vs'])
+
+-- 'Break' to end of this label
+-- the required amount of values are popped from the inner stack
+-- and pushed on the outer stack
+-- if the label has inside instructions (Loop does this)
+-- the inside instructions are returned
+step' (Label n inner (Code _ ((Breaking 0 retStack):_))) vs (Config frame _) =
+  (frame, (take (fromIntegral n :: Int) retStack) ++ vs, map Plain inner)
+
+-- 'Break' k label layers up
+-- returns new Breaking instr with k-1
+step' (Label n instr (Code vs' ((Breaking k retStack):es))) vs (Config frame _) =
+  (frame, vs, [Breaking (k - 1) retStack])
+
+-- Continue evaluation of instructions inside label
+-- step code inside label in context of current config
+-- return Label with resulting code
+step' (Label n innerInstr code') vs c@(Config frame _) =
+  let (Config frame' (Code vs' c')) = step $ c { confCode = code' }        -- ^Step under c with the code inside label
+  in (frame', vs, [Label n innerInstr (Code vs' c')])
+
+step' (Invoke (Closure _ (Func name params (Block _ instr)))) vs (Config frame _) =
+  let (frame', vs') = addBinds frame params vs
+  in (frame, (eval (Config frame' (Code [] (fmap Plain instr)))) ++ vs', [])
+
+step' err _ _ = error $"Not implemented" ++ show err
+
+-- |Evaluates code under given context
+--  based on proposition 4.2 evalution should either
+--    * return value stack
+--    * trap
+--    * modify context
+eval :: Config -> Stack WasmVal
+eval c@(Config _ (Code vs es)) = case es of
+  [] -> vs
+  (Trapping msg):_ -> error msg -- ^ TODO: change to other type of error handling
+  _ -> eval $ step c
+
+{- reduction -}
+execRed :: Func -> Config
+execRed (Func name params block) = 
+  stackToConfig $ eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst (Func name params block))]))
+
+stackToConfig :: Stack WasmVal -> Config
+stackToConfig vs = Config (FrameT EmptyInst Map.empty) (Code vs [])
+
+extractStack :: Config -> Stack WasmVal
+extractStack (Config frame (Code vs es)) = vs
+
+addBinds :: Frame -> [Param] -> Stack WasmVal -> (Frame, Stack WasmVal)
+addBinds (FrameT inst locals) params vs = case (params, vs) of 
+  ([], vs') -> ((FrameT inst locals), vs')
+  (Param name _ : ps, v:vs') -> addBinds (FrameT inst (Map.insert name v locals)) ps vs'
+  _ -> error "Expected more arguments"
+
+addBind :: Frame -> String -> WasmVal -> Frame
+addBind (FrameT inst locals) string value = FrameT inst (Map.insert string value locals)
+
+findLocal :: String -> Frame -> WasmVal
+findLocal id (FrameT _ locals) = case Map.lookup id locals of
+  Just v -> v
+  Nothing -> error "Value not found"
 
 -- |Determines whether or not the given WasmVal stack matches a given parameter
 --  definition. Match checking is done using the valsOfType function.
@@ -72,37 +247,6 @@ valsOfType vals types =
     let zipped = zipWith ofType vals types
     in (length types) == (length vals) && (foldl (&&) True zipped)
 
--- |Returns a modification of the given WasmVal stack and execution environment
---  by executing the given Instr in the given block as if it were an actual
---  wasm instruction.
---  Throws a NotImplemented if there is no implementation for the given Instr.
---  Throws a LookupError if the Instr cannot be executed within this
---  environment.
-execInstr :: Instr -> [WasmVal] -> Map.Map String WasmVal ->
-    ([WasmVal], Map.Map String WasmVal)
-execInstr (EnterBlock block) stack locals = execBlock block stack locals
-execInstr (If instr) (x:stack) locals
-    | valToBool x = execInstr instr stack locals
-    | otherwise   = (stack, locals)
-execInstr (LocalGet tag) stack locals = case Map.lookup tag locals of
-    Just val -> (val:stack, locals)
-    Nothing -> E.throw (LookupError $ "on local var \"" ++ tag ++ "\".")
-execInstr (LocalSet tag) (x:stack) locals = (stack, Map.insert tag x locals)
-execInstr (LocalTee tag) stack locals =
-    let whenSet = execInstr (LocalSet tag) stack locals
-    in  execInstr (LocalGet tag) (fst whenSet) (snd whenSet)
-execInstr (Numeric (Const val)) stack locals = (val:stack, locals)
-execInstr (Numeric (Add typ)) (x:y:stack) locals =
-    ((binOp typ y x (+) (+)):stack, locals)
-execInstr (Numeric (Sub typ)) (x:y:stack) locals =
-    ((binOp typ y x (-) (-)):stack, locals)
-execInstr (Numeric (Mul typ)) (x:y:stack) locals =
-    ((binOp typ y x (*) (*)):stack, locals)
-execInstr (Numeric (Div typ Signed)) (x:y:stack) locals =
-    ((binOp typ y x div (/)):stack, locals)
-execInstr Nop stack locals = (stack, locals)
-execInstr instr _ _ = E.throw $ NotImplemented instr
-
 -- |Defines wasm I32 values as "falsy" if equal to 0 and "truthy" otherwise.
 --  Throws a TypeError if a value of any other type than I32 is given.
 valToBool :: WasmVal -> Bool
@@ -124,3 +268,5 @@ binOp typ x y opI opF
         (F64Val a, F64Val b) -> F64Val (a `opF` b)
         (_, _) -> E.throw (TypeError "binOp on two different types.")
     | otherwise = E.throw (TypeError "binOp type does not match arg type.")
+
+

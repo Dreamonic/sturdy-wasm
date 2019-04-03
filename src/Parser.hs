@@ -9,10 +9,7 @@ module Parser(
   , Param(..)
   , Result(..)
   , SignedNess(..)
-  , ofType
   , parse
-  , toWasmI
-  , toWasmF
   , function
   , parseFunc
 ) where
@@ -23,26 +20,21 @@ import           Control.Monad
 import           Lexer
 
 import Data.List
-
-
-data WasmType
-  = I32
-  | I64
-  | F32
-  | F64
-  deriving (Show, Eq)
+import WasmTypes(WasmType(..), WasmVal(..))
 
 data Instr
-  = EnterBlock Block
-  | Branch Integer
-  | If Instr
-  | Loop Instr
+  = Bl [WasmType] [Instr]
+  | Br Integer
+  | BrIf Integer
+  | If [WasmType] [Instr] [Instr]
+  | Loop [WasmType] [Instr]
   | Call String
   | LocalGet String
   | LocalSet String
   | LocalTee String
   | Numeric TypedInstr
   | Nop
+  | Unreachable
   deriving (Show, Eq)
 
 data TypedInstr
@@ -57,38 +49,10 @@ data TypedInstr
   | Xor WasmType
   | Abs WasmType
   | Neg WasmType
+  | Eql WasmType
   deriving (Show, Eq)
 
-data WasmVal
-  = I32Val Integer
-  | I64Val Integer
-  | F32Val Double
-  | F64Val Double
-  deriving (Show, Eq)
-
-getType :: WasmVal -> WasmType
-getType typ = case typ of
-  (I32Val _) -> I32
-  (I64Val _) -> I64
-  (F32Val _) -> F32
-  (F64Val _) -> F64
-
-ofType :: WasmVal -> WasmType -> Bool
-ofType val typ = (getType val) == typ
-
-toWasmI :: WasmType -> Integer -> WasmVal
-toWasmI typ x = case typ of
-  I32 -> I32Val x
-  I64 -> I64Val x
-  _   -> toWasmF typ (fromIntegral x)
-
-toWasmF :: WasmType -> Double -> WasmVal
-toWasmF typ x = case typ of
-  F32 -> F32Val x
-  F64 -> F64Val x
-  _   -> toWasmI typ (round x)
-
-data Param = Param String WasmType deriving (Show, Eq)
+data Param = Param {getName :: String, getValue :: WasmType} deriving (Show, Eq)
 data Result = Result WasmType deriving (Show, Eq)
 data SignedNess = Signed | Unsigned deriving (Show, Eq)
 data Block = Block [Result] [Instr] deriving (Show, Eq)
@@ -114,7 +78,15 @@ parseBody = do
     rest <- parseBody <|> return []
     return $ instructions ++ rest
 
-parseInstruction = parseGetLocal <|> parseNumericInstr <|> parens parseInstruction
+parseInstruction 
+  = parseBlock 
+  <|> parseLoop
+  <|> parseBranch
+  <|> parseIf
+  <|> parseGetLocal 
+  <|> parseSetLocal 
+  <|> parseNumericInstr 
+  <|> parens parseInstruction
 
 -- Parse instructions that are folded into an S-expression
 parseFolded :: Parser [Instr]
@@ -123,11 +95,42 @@ parseFolded = parens $ do
   operands <- many parseFolded
   return $ concat operands ++ [instruction]
 
+parseBlock :: Parser Instr
+parseBlock = do
+  keyword "block"
+  instr <- parseBody
+  return $ Bl [] instr
+
+parseLoop :: Parser Instr
+parseLoop = do
+  keyword "loop"
+  instr <- parseBody
+  return $ Loop [] instr
+
+parseBranch :: Parser Instr
+parseBranch = 
+  (keyword "br" >> return Br <*> integer)
+  <|> (keyword "br_if" >> return BrIf <*> integer)
+
+parseIf :: Parser Instr
+parseIf = do
+  keyword "if"
+  t <- many $ parseResultType
+  instrT <- many $ parseInstruction
+  keyword "else"
+  instrF <- many $ parseInstruction
+  keyword "end"
+  return $ If (fmap (\(Result x) -> x) t) instrT instrF
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
   keyword "get_local"
   return LocalGet <*> identifier
+
+parseSetLocal :: Parser Instr
+parseSetLocal = do
+  keyword "set_local"
+  return LocalSet <*> identifier
 
 parseConst :: Parser Instr
 parseConst = do
@@ -162,6 +165,7 @@ makeII "rem_u" t = return $ Rem t Unsigned
 makeII "and" t   = return $ And t
 makeII "or"  t   = return $ Or t
 makeII "xor" t   = return $ Xor t
+makeII "eq" t    = return $ Eql t
 
 makeII str   t   = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
@@ -173,6 +177,7 @@ makeFI "mul" t = return $ Mul t
 makeFI "div" t = return $ Div t Signed
 makeFI "abs" t = return $ Abs t
 makeFI "neg" t = return $ Neg t
+makeFI "eq"  t = return $ Eql t
 makeFI str   t = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
 
 parseType :: Parser WasmType
