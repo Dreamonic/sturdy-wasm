@@ -99,12 +99,14 @@ parseBlock :: Parser Instr
 parseBlock = do
   keyword "block"
   instr <- parseBody
+  keyword "end"
   return $ Bl [] instr
 
 parseLoop :: Parser Instr
 parseLoop = do
   keyword "loop"
   instr <- parseBody
+  keyword "end"
   return $ Loop [] instr
 
 parseBranch :: Parser Instr
