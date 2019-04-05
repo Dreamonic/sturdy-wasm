@@ -16,16 +16,17 @@ spec = do
 -- Linking tests to Test Suites --
 
 tsFunctions = describe "functions" $ do
-    testStep
-    testT
-    testT2
-    testT3
-    testT4
-    testT5
-    testT6
-    testT7
-    testT8
-    testNestedBlocks
+    return ()
+    -- testStep
+    -- testT
+    -- testT2
+    -- testT3
+    -- testT4
+    -- testT5
+    -- testT6
+    -- testT7
+    -- testT8
+    -- testNestedBlocks
 
 
 -- Tests --  
