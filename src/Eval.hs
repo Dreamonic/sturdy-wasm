@@ -32,39 +32,48 @@ step (Plain e) = case e of
     Numeric e' -> case e' of
         Add _ ->    do {    a <- pop ;
                             b <- pop ;
-                            push (((+) <|> (+)) <%> (a <:*:> b)) }
+                            push (a + b) }
         Sub _ ->    do {    a <- pop ;
                             b <- pop ;
-                            push (((-) <|> (-)) <%> (a <:*:> b)) }
+                            push (a - b) }
         Mul _ ->    do {    a <- pop ;
                             b <- pop ;
-                            push (((*) <|> (*)) <%> (a <:*:> b)) }
+                            push (a * b) }
         Div _ _ ->  do {    a <- pop ;
                             b <- pop ;
-                            push ((div <|> (/)) <%> (a <:*:> b)) }
+                            push (a / b) }
         Eql _ ->    do {    a <- pop;
                             b <- pop ;
-                            push (((==) <=> (==)) <%> (a <:*:> b)) }
+                            push $ boolToWasm (a == b) }
         Const v ->          push v
+
     Bl tps es ->    do {    len <- return $ length tps ;
-                            c <- return $ Code [] (fmap Plain es) ;
-                            putInstr (Label len [] c) }
+                            c <- return $ code es ;
+                            putInstr (label len c) }
+
     Loop tps es ->  do {    len <- return $ length tps ;
-                            c <- return $ Code [] (fmap Plain es) ;
+                            c <- return $ code es ;
                             putInstr (Label len [e] c) }
+
     If tps tb fb -> do {    cond <- pop ;
-                            case cond of
-                                I32Val 0 -> putInstr (Plain (Bl tps fb))
-                                I32Val _ -> putInstr (Plain (Bl tps tb)) }
-    Br v ->                 putInstr (Breaking v [])
+                            if wasmToBool cond
+                            then putInstr (Plain (Bl tps tb))
+                            else putInstr (Plain (Bl tps fb)) }
+
+    Br v ->         do {    vs <- getStack ;
+                            putInstr (Breaking v vs) }
+
     BrIf v ->       do {    cond <- pop ;
-                            case cond of
-                                I32Val 0 -> return ()
-                                I32Val _ -> putInstr (Plain (Br v)) }
+                            if wasmToBool cond
+                            then putInstr (Plain (Br v))
+                            else return () }
+
     LocalGet v ->   do {    var <- getVar v ;
                             push var }
+
     LocalSet v ->   do {    val <- pop ;
                             setVar v val }
+                            
     err ->                  error ("Not implemented Plain: " ++ show err)
 
 step (Invoke (Closure _ (Func name params (Block _ instr)))) = do {

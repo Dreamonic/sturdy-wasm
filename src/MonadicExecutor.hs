@@ -8,6 +8,8 @@ module MonadicExecutor(
     , Closure(..)
     , AdminInstr(..)
     , Config(..)
+    , label
+    , code
     , initConfig
     , unEnv
     , push
@@ -18,6 +20,7 @@ module MonadicExecutor(
     , putInstrList
     , getInstr
     , hasInstr
+    , getStack
 ) where
 
 import qualified Data.Map as Map
@@ -64,7 +67,11 @@ data ExecutorException
     | NumericError
     | TrapError
 
--- type SafeExecutor a = ExceptT ExecutorException MExecutor a
+label :: Int -> Code -> AdminInstr
+label n c = Label n [] c
+
+code :: [Instr] -> Code
+code es = Code [] (fmap Plain es)
 
 newtype MExecutor a = Env (Config -> (a, Config))
 
@@ -121,11 +128,13 @@ putInstrList is = Env (\(Config frame (Code vs es)) -> ((), Config frame (Code v
 getInstr :: MExecutor AdminInstr
 getInstr = Env (\(Config frame (Code vs (e:es))) -> (e, Config frame (Code vs es)))
 
-
 hasInstr :: MExecutor Bool
 hasInstr = Env (\(Config frame (Code vs es)) -> case es of
     [] -> (False, Config frame (Code vs es)) 
     _ -> (True, Config frame (Code vs es)))
+
+getStack :: MExecutor (Stack WasmVal)
+getStack = Env(\(Config frame (Code vs es)) -> (vs, Config frame (Code vs es)))
 
 -- |    Find a local variable from local environment.
 findLocal :: String -> Locals -> WasmVal

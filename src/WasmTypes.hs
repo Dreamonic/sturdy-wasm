@@ -10,9 +10,10 @@ module WasmTypes(
   , (<=>)
   , ret
   , wasmfmap
+  , boolToWasm
+  , wasmToBool
 ) where
 
-import Prelude(Show, Ord, Eq, Integer, Double, Bool, error, fromIntegral, round, (==), ($))
 import Data.Bool
 
 data WasmType
@@ -27,10 +28,34 @@ data WasmVal
     | I64Val Integer
     | F32Val Double
     | F64Val Double
-    deriving (Show, Eq)
+    deriving (Show)
 
-infixl 0 <%>
-infixl 1 :<*>
+instance Num WasmVal where
+    a + b = ((+) <|> (+)) <%> a <:*:> b
+    a * b = ((*) <|> (*)) <%> a <:*:> b
+    a - b = ((-) <|> (-)) <%> a <:*:> b
+    abs (I32Val a) = I32Val (abs a)
+    abs (I64Val a) = I64Val (abs a)
+    abs (F32Val a) = F32Val (abs a)
+    abs (F64Val a) = F64Val (abs a)
+    signum (I32Val a) = I32Val (signum a)
+    signum (I64Val a) = I64Val (signum a)
+    signum (F32Val a) = F32Val (signum a)
+    signum (F64Val a) = F64Val (signum a)
+    fromInteger a = error "Cannot cast from Integer to WasmVal"
+
+instance Fractional WasmVal where
+    a / b = (div <|> (/)) <%> a <:*:> b
+    fromRational a = error "Cannot casst from Fraction to WasmVal"
+
+instance Eq WasmVal where
+    a == b = wasmToBool $ ((==) <=> (==)) <%> a <:*:> b
+
+instance Ord WasmVal where
+    a <= b = wasmToBool $ ((<=) <=> (<=)) <%> a <:*:> b
+
+infixl 1 <%>
+infixl 2 :<*>
 
 class WasmFunctor a where
     wasmfmap :: (a -> a) -> WasmVal -> WasmVal
@@ -62,6 +87,10 @@ fi <=> ff = FC (fi :<=> ff)
 instance WasmFunctor Integer where
     wasmfmap f (I32Val x) = I32Val (f x)
     wasmfmap f (I64Val x) = I64Val (f x)
+
+instance WasmFunctor Double where
+    wasmfmap f (F32Val x) = F32Val (f x)
+    wasmfmap f (F64Val x) = F64Val (f x)
 
 instance WasmApplicative F where
     FI f <%> (I32Val a) :<*> (I32Val b) = I32Val (f a b)
@@ -95,6 +124,11 @@ boolToWasm :: Bool -> WasmVal
 boolToWasm x = case x of
     True -> I32Val 1
     False -> I32Val 0
+
+wasmToBool :: WasmVal -> Bool
+wasmToBool x = case x of
+    I32Val 0 -> False
+    I32Val _ -> True
 
 ofType :: WasmVal -> WasmType -> Bool
 ofType val typ = (getType val) == typ
