@@ -23,7 +23,6 @@ module MonadicExecutor(
 import qualified Data.Map as Map
 import Parser
 import Debug.Trace
-import Control.Monad.Except
 
 data ModInst =
     EmptyInst
