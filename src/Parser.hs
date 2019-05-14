@@ -35,11 +35,13 @@ data Instr
   | Numeric TypedInstr
   | Nop
   | Unreachable
+  | Binary WasmType
+  | Const WasmType
   deriving (Show, Eq)
 
 data TypedInstr
-  = Const WasmVal
-  | Add WasmType
+  -- = Const WasmVal
+  = Add WasmType
   | Sub WasmType
   | Mul WasmType
   | Div WasmType SignedNess   -- TODO: keep it like this, or introduce seperate Div instructions (one for floats, and signed and unsigned)
@@ -134,19 +136,19 @@ parseSetLocal = do
   keyword "set_local"
   return LocalSet <*> identifier
 
-parseConst :: Parser Instr
-parseConst = do
-  t <- parseType
-  _ <- dot
-  _ <- keyword "const"
-  case t of
-        F32 -> Numeric . Parser.Const . F32Val <$> float
-        F64 -> Numeric . Parser.Const . F64Val <$> float
-        I32 -> Numeric . Parser.Const . I32Val <$> integer
-        I64 -> Numeric . Parser.Const . I64Val <$> integer
+-- parseConst :: Parser Instr
+-- parseConst = do
+--   t <- parseType
+--   _ <- dot
+--   _ <- keyword "const"
+--   case t of
+--         F32 -> Numeric . Parser.Const . F32Val <$> float
+--         F64 -> Numeric . Parser.Const . F64Val <$> float
+--         I32 -> Numeric . Parser.Const . I32Val <$> integer
+--         I64 -> Numeric . Parser.Const . I64Val <$> integer
 
 parseNumericInstr :: Parser Instr
-parseNumericInstr = try parseConst <|> do
+parseNumericInstr = do
   t <- parseType
   _ <- dot
   i <- anyKeyword
