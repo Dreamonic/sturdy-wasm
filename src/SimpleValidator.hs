@@ -2,6 +2,7 @@ module SimpleValidator where
 
 import Parser(Instr(..), TypedInstr(..))
 import WasmTypes
+import Control.Monad
 
 type ValType = WasmType
 data InferType = Actual ValType | Unknown deriving (Show, Eq)
@@ -24,10 +25,11 @@ data Context = Context {
     -- locals :: [ValType]
 } deriving (Show, Eq)
 
-emptyContext = Context [] [] 
-
 known :: [ValType] -> [InferType]
 known xs = map Actual xs
+
+pushOp :: InferType -> Context -> Context
+pushOp op ctx = ctx { ops = op:(ops ctx) }
 
 push :: [InferType] -> Context -> Context
 push ops' ctx = ctx { ops = (reverse ops') ++ (ops ctx) }
@@ -41,19 +43,21 @@ checkStack ts1 ts2 = (length ts1) == (length ts2) && (and $ zipWith equalType ts
 currentFrame :: Context -> Frame
 currentFrame ctx = head $ frames ctx
 
-popOp :: InferType -> Context -> InferType
+popOp :: InferType -> Context -> Either String Context
 popOp expect ctx = do
     let ops' = ops ctx
     let currentFrame' = currentFrame ctx
-    let actual = do
+    actual <- do
         if length ops' == height currentFrame' then
-            if unreachable currentFrame' then Unknown else error "Underflow occured"
+            if unreachable currentFrame' then Right Unknown else Left "Underflow occured"
         else
-            head ops'
+            Right $ head ops'
     case (actual, expect) of
-        (Unknown, _) -> expect
-        (_, Unknown) -> actual
-        (a, b) -> if a == b then actual else error "Type equality error"
+        (Actual a, Actual b) -> 
+            if a == b then 
+                return $ ctx { ops = drop 1 ops' } 
+            else Left "Type equality error" 
+        otherwise -> return ctx { ops = drop 1 ops' }
 
 pop :: [InferType] -> Context -> Either String Context
 pop expected ctx = do
@@ -75,13 +79,10 @@ pushCtrl labelIn labelOut ctx = do
 
 popCtrl :: Context -> Either String Context
 popCtrl (Context _ []) = Left "Can't pop frame from empty stack"
-popCtrl ctx @ (Context _ (f:fs)) = case pop (known $ results f) ctx of
-    Right ctx' -> do
-        if (length $ ops ctx') /= height f then
-            Left $ "Incorrect return count"
-        else
-            Right $ ctx' { frames = fs }
-    r -> r
+popCtrl ctx @ (Context _ (f:fs)) = do
+    ctx' <- pop (known $ results f) ctx
+    when ((length $ ops ctx') /= height f) (Left $ "Incorrect return count")
+    return $ ctx' { frames = fs }
 
 setUnreachable :: Context -> Context
 setUnreachable ctx @ (Context _ []) = ctx
@@ -114,17 +115,9 @@ checkSeq ctx es = case es of
         ctx1 <- checkSeq ctx es'
         let (pops, pushes) = checkInstr ctx e (ops ctx1)
         ctx2 <- pop pops ctx1 
-        Right $ push pushes ctx2
+        return $ push pushes ctx2
 
 emptyCtx = pushCtrl [] [] (Context [] [])
 validSeq ctx ops = case checkSeq ctx ops of
     Left err -> err
     Right (Context ops _) -> "Valid, end=" ++ show ops
-
-
-
-
-
-
-
-
