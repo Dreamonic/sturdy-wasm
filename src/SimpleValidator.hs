@@ -20,9 +20,12 @@ data Frame = Frame {
 
 data Context = Context {
     ops :: [InferType],
-    frames :: [Frame]
+    frames :: [Frame],
+    locals :: [ValType]
     -- funcs :: [FuncType]
-    -- locals :: [ValType]
+    -- globals
+    -- memories
+    -- tables
 } deriving (Show, Eq)
 
 known :: [ValType] -> [InferType]
@@ -43,7 +46,7 @@ checkStack ts1 ts2 = (length ts1) == (length ts2) && (and $ zipWith equalType ts
 currentFrame :: Context -> Frame
 currentFrame ctx = head $ frames ctx
 
-popOp :: InferType -> Context -> Either String Context
+popOp :: InferType -> Context -> Either String (InferType, Context)
 popOp expect ctx = do
     let ops' = ops ctx
     let currentFrame' = currentFrame ctx
@@ -55,9 +58,9 @@ popOp expect ctx = do
     case (actual, expect) of
         (Actual a, Actual b) -> 
             if a == b then 
-                return $ ctx { ops = drop 1 ops' } 
-            else Left "Type equality error" 
-        otherwise -> return ctx { ops = drop 1 ops' }
+                return $ (actual, ctx { ops = drop 1 ops' })
+            else Left$ "Expected: " ++ show expect ++ " but got: " ++ show actual
+        otherwise -> return (actual, ctx { ops = drop 1 ops' })
 
 pop :: [InferType] -> Context -> Either String Context
 pop expected ctx = do
@@ -73,20 +76,20 @@ pop expected ctx = do
         Left $ "Expected: " ++ show expected ++ " but got: " ++ show (take min' stack)
 
 pushCtrl :: [ValType] -> [ValType] -> Context -> Context
-pushCtrl labelIn labelOut ctx = do
-    let frame = Frame labelIn labelOut (length $ ops ctx) False
+pushCtrl labels results ctx = do
+    let frame = Frame labels results (length $ ops ctx) False
     ctx { frames = frame:(frames ctx) }
 
 popCtrl :: Context -> Either String Context
-popCtrl (Context _ []) = Left "Can't pop frame from empty stack"
-popCtrl ctx @ (Context _ (f:fs)) = do
+popCtrl (Context _ [] _) = Left "Can't pop frame from empty stack"
+popCtrl ctx @ (Context _ (f:fs) _) = do
     ctx' <- pop (known $ results f) ctx
-    when ((length $ ops ctx') /= height f) (Left $ "Incorrect return count")
+    when ((length $ ops ctx') /= height f) (Left $ "Type mismatch in block")
     return $ ctx' { frames = fs }
 
 setUnreachable :: Context -> Context
-setUnreachable ctx @ (Context _ []) = ctx
-setUnreachable ctx @ (Context ops' (f:fs)) = ctx { 
+setUnreachable ctx @ (Context _ [] _) = ctx
+setUnreachable ctx @ (Context ops' (f:fs) _) = ctx { 
     frames = (f { unreachable = True } ):fs, 
     ops = drop ((length ops') - (height f)) ops'
     }
@@ -117,7 +120,7 @@ checkSeq ctx es = case es of
         ctx2 <- pop pops ctx1 
         return $ push pushes ctx2
 
-emptyCtx = pushCtrl [] [] (Context [] [])
+emptyCtx = pushCtrl [] [] (Context [] [] [])
 validSeq ctx ops = case checkSeq ctx ops of
     Left err -> err
-    Right (Context ops _) -> "Valid, end=" ++ show ops
+    Right (Context ops _ _) -> "Valid, end=" ++ show ops
