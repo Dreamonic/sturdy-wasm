@@ -30,6 +30,13 @@ instance Monad M where
         (a, ctx') <- (unpack e) ctx
         unpack (f a) ctx'
 
+failIf :: (Context -> Bool) -> String -> M ()
+failIf guard err = Env $ \ctx -> if guard ctx then Left err else Right ((), ctx)
+
+-- | Fails with err if (getter Context) does not satisfy guard
+failM :: (Context -> a) -> (a -> Bool) -> String -> M ()
+failM getter guard err = failIf (guard . getter) err
+
 -- | Pushes single value on op stack
 pushM :: InferType -> M ()
 pushM op = Env $ \ctx -> Right ((), pushOp op ctx)
@@ -57,18 +64,32 @@ popCtrlM = Env $ \ctx -> do
     ctx' <- popCtrl ctx
     return ((), ctx')
 
+-- | Get frame at i
+peekCtrlM :: Int -> M Frame
+peekCtrlM i = Env $ \ctx -> do
+    let frames' = frames ctx
+    when (i >= length frames') $ Left $ "Index " ++ show i ++ " of frame stack is out of range"
+    return (frames' !! i, ctx)
+
 -- | Push single value on locals stack
 pushLocal :: ValType -> M ()
 pushLocal val = Env $ \ctx -> do
-    let (Context _ _ locals) = ctx
-    return ((), ctx { locals = val:locals })
+    let locals' = locals ctx
+    return ((), ctx { locals = val:locals' })
+
+-- | Pop single value from locals stack
+popLocal :: M ValType
+popLocal = Env $ \ctx -> do
+    let locals' = locals ctx
+    when (length locals' == 0) $ Left "Cannot pop local from empty stack"
+    return (head locals', ctx { locals = tail locals' })
 
 -- | Get value at local[i], fails if locals[i] does not exist
 getLocal :: Int -> M ValType
 getLocal i = Env $ \ctx -> do
-    let (Context _ _ locals) = ctx
-    when (i >= length locals) $ Left $ "Index " ++ show i ++ " of local stack is out of range"
-    return (locals !! i, ctx)
+    let locals' = locals ctx
+    when (i >= length locals') $ Left $ "Index " ++ show i ++ " of local stack is out of range"
+    return (locals' !! i, ctx)
 
 -- | Set local[i] to given value, fails if locals[i] does not exist
 setLocal :: Int -> ValType -> M ()
@@ -106,6 +127,13 @@ checkM e = case e of
         checkLabel t t ops'
         forM_ (known t) pushM
 
+    Br levels -> do
+        let n = fromInteger levels
+        failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
+        frame <- peekCtrlM n
+        forM_ (known $ labels frame) popM
+        setUnreachableM
+
 checkSeqM :: [Instr] -> M ()
 checkSeqM ops' = mapM_ checkM ops'
     
@@ -123,6 +151,7 @@ checkFunc (Func _ params (Block results instr)) = do
     pushCtrlM results' results'
     checkSeqM instr
     popCtrlM
+    replicateM_ (length params) popLocal
 
 check m = case unpack m emptyCtx of
     Left err -> err

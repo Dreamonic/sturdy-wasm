@@ -12,7 +12,7 @@ type StackType = [ValType]
 data FuncType = FuncType StackType StackType deriving (Show)
 
 data Frame = Frame {
-    labelTypes :: [ValType],
+    labels :: [ValType],
     results :: [ValType],
     height :: Int,
     unreachable :: Bool
@@ -120,7 +120,8 @@ checkSeq ctx es = case es of
         ctx2 <- pop pops ctx1 
         return $ push pushes ctx2
 
-emptyCtx = pushCtrl [] [] (Context [] [] [])
+emptyCtx = Context [] [] []
+
 validSeq ctx ops = case checkSeq ctx ops of
     Left err -> err
     Right (Context ops _ _) -> "Valid, end=" ++ show ops
