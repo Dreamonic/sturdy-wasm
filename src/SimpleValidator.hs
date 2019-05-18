@@ -28,6 +28,8 @@ data Context = Context {
     -- tables
 } deriving (Show, Eq)
 
+emptyCtx = Context [] [] []
+
 known :: [ValType] -> [InferType]
 known xs = map Actual xs
 
@@ -119,8 +121,6 @@ checkSeq ctx es = case es of
         let (pops, pushes) = checkInstr ctx e (ops ctx1)
         ctx2 <- pop pops ctx1 
         return $ push pushes ctx2
-
-emptyCtx = Context [] [] []
 
 validSeq ctx ops = case checkSeq ctx ops of
     Left err -> err
