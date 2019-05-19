@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module MonadicExecutor(
     MExecutor(..)
     , ModInst(..)
@@ -20,12 +21,13 @@ module MonadicExecutor(
     , putInstrList
     , getInstr
     , hasInstr
-    , getStack
+    , retrieveStack
 ) where
 
 import qualified Data.Map as Map
 import Parser
 import Debug.Trace
+import Control.Lens
 
 data ModInst =
     EmptyInst
@@ -34,13 +36,13 @@ data ModInst =
 type Locals = Map.Map String WasmVal
 
 data Frame =
-    FrameT ModInst Locals
+    FrameT {_modInst :: ModInst, _locals :: Locals}
     deriving (Show, Eq)
 
 type Stack a = [a]
 
 data Code =
-    Code (Stack WasmVal) [AdminInstr]
+    Code {_stack :: [WasmVal], _instr :: [AdminInstr]}
     deriving (Show, Eq)
 
 data Closure =
@@ -58,7 +60,7 @@ data AdminInstr =
     deriving (Show, Eq)
 
 data Config =
-    Config { confFrame :: Frame, confCode :: Code }
+    Config { _confFrame :: Frame, _confCode :: Code }
     deriving (Show, Eq)
 
 data ExecutorException
@@ -67,11 +69,16 @@ data ExecutorException
     | NumericError
     | TrapError
 
+
+makeLenses ''Frame
+makeLenses ''Code
+makeLenses ''Config
+
 label :: Int -> Code -> AdminInstr
 label n c = Label n [] c
 
-code :: [Instr] -> Code
-code es = Code [] (fmap Plain es)
+-- code :: [Instr] -> Code
+-- code es = Code [] (fmap Plain es)
 
 newtype MExecutor a = Env (Config -> (a, Config))
 
@@ -91,6 +98,9 @@ instance Monad MExecutor where
                                 (b, n2) = unEnv (f a) n1
                             in  (b, n2))
 
+code :: [Instr] -> Code
+code es = Code [] (fmap Plain es)
+
 -- |    Initialize the Config to Config with no locals, 
 --      an empty value stack, and an empty execution stack.
 initConfig :: Stack WasmVal -> AdminInstr -> Config
@@ -100,41 +110,59 @@ initConfig vs e = Config (FrameT EmptyInst Map.empty) (Code vs [e])
 unEnv :: MExecutor a -> (Config -> (a, Config))
 unEnv (Env e) = e
 
+-- |    Get the stack from a Config.
+getStack :: Config -> Stack WasmVal
+getStack = view (confCode . stack)
+
+-- |    Set the stack of a Config.
+setStack :: Stack WasmVal -> Config -> Config
+setStack vs conf= set (confCode . stack) vs conf
+
+-- |    Push a single WasmVal to the top of the stack of a Config.
+pushToStack :: WasmVal -> Config-> Config
+pushToStack v = over (confCode . stack) ((:) v)
+
+-- |    Pop the top most value from the stack of a Config.
+popFromStack :: Config -> (WasmVal, Config)
+popFromStack conf = case getStack conf of
+    [] -> error "Cannot pop"
+    v:vs -> (v, setStack vs conf)
+
 -- |    Push a WasmVal onto the value stack.
 push :: WasmVal -> MExecutor ()
-push v = Env (\(Config frame (Code vs es)) -> ((), Config frame (Code (v:vs) es)))
+push v = Env (\config -> ((), (pushToStack v config)))
 
 -- |    Pop a single WasmVal from the value stack.
 pop :: MExecutor WasmVal
-pop = Env (\(Config frame (Code (v:vs) es)) -> (v, Config frame (Code vs es)))
+pop = Env (\config -> popFromStack config)
 
 -- |    Put a value into the local environment
 setVar :: String -> WasmVal -> MExecutor () 
-setVar id v = Env (\(Config (FrameT m locals) c) -> ((), Config (FrameT m (Map.insert id v locals)) c))
+setVar id v = Env (\config -> ((), over (confFrame . locals) (Map.insert id v) config))
 
 -- |    Get a value from the local environment specified by the variable.
 getVar :: String -> MExecutor WasmVal
-getVar id = Env (\(Config (FrameT m locals) c) -> (findLocal id locals, Config (FrameT m locals) c))
+getVar id = Env (\config -> (findLocal id (view (confFrame . locals) config), config))
 
 -- |    Put an instruction on the execution stack.
 putInstr :: AdminInstr -> MExecutor ()
-putInstr instr = Env (\(Config frame (Code vs es)) -> ((), Config frame (Code vs (instr:es))))
+putInstr i = Env (\config -> ((), over (confCode . instr) ((:) i) config))
 
 -- |    Put a list of instructions on the execution stack.
 putInstrList :: [AdminInstr] -> MExecutor ()
-putInstrList is = Env (\(Config frame (Code vs es)) -> ((), Config frame (Code vs (is ++ es))))
+putInstrList is = Env (\config -> ((), over (confCode . instr) ((++) is) config))
 
 -- |    Get the first instruction from the execution stack.
 getInstr :: MExecutor AdminInstr
-getInstr = Env (\(Config frame (Code vs (e:es))) -> (e, Config frame (Code vs es)))
+getInstr = Env (\config -> (head (view (confCode . instr) config), over (confCode . instr) tail config))
 
 hasInstr :: MExecutor Bool
-hasInstr = Env (\(Config frame (Code vs es)) -> case es of
-    [] -> (False, Config frame (Code vs es)) 
-    _ -> (True, Config frame (Code vs es)))
+hasInstr = Env (\config -> case view (confCode . instr) config of
+    [] -> (False, config) 
+    _ -> (True, config))
 
-getStack :: MExecutor (Stack WasmVal)
-getStack = Env(\(Config frame (Code vs es)) -> (vs, Config frame (Code vs es)))
+retrieveStack :: MExecutor (Stack WasmVal)
+retrieveStack = Env(\config -> (view (confCode . stack) config, config))
 
 -- |    Find a local variable from local environment.
 findLocal :: String -> Locals -> WasmVal

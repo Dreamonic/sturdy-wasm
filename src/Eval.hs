@@ -47,8 +47,8 @@ step (Plain e) = case e of
                             push $ boolToWasm (a == b) }
         Const v ->          push v
 
-    Bl tps es ->    do {    len <- return $ length tps ;
-                            c <- return $ code es ;
+    Bl tps es ->    do {    let len = length tps in
+                            let c = code es in
                             putInstr (label len c) }
 
     Loop tps es ->  do {    len <- return $ length tps ;
@@ -60,7 +60,7 @@ step (Plain e) = case e of
                             then putInstr (Plain (Bl tps tb))
                             else putInstr (Plain (Bl tps fb)) }
 
-    Br v ->         do {    vs <- getStack ;
+    Br v ->         do {    vs <- retrieveStack ;
                             putInstr (Breaking v vs) }
 
     BrIf v ->       do {    cond <- pop ;
@@ -73,7 +73,7 @@ step (Plain e) = case e of
 
     LocalSet v ->   do {    val <- pop ;
                             setVar v val }
-                            
+
     err ->                  error ("Not implemented Plain: " ++ show err)
 
 step (Invoke (Closure _ (Func name params (Block _ instr)))) = do {
