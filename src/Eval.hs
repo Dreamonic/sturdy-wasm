@@ -6,9 +6,12 @@ import MonadicExecutor
 import Parser
 import WasmTypes
 
-execFunc :: [WasmVal] -> Func -> Stack WasmVal
-execFunc vs func = case snd $ (unEnv eval) $ initConfig vs (Invoke (Closure EmptyInst func)) of
-    Config _ (Code vs _) -> vs
+execFunc :: [WasmVal] -> Func -> Either String (Stack WasmVal)
+execFunc vs func = 
+    let res = (unEnv eval) $ initConfig vs (Invoke (Closure EmptyInst func))
+    in case fst res of
+        Left msg -> Left msg
+        _ -> Right $ getStack $ snd res
 
 
 eval :: MExecutor ()

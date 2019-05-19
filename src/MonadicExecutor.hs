@@ -22,6 +22,7 @@ module MonadicExecutor(
     , getInstr
     , hasInstr
     , retrieveStack
+    , getStack
 ) where
 
 import qualified Data.Map as Map
