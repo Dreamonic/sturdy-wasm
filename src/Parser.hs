@@ -3,11 +3,13 @@ module Parser(
   , WasmModule(..)
   , Func(..)
   , Instr(..)
-  , TypedInstr(..)
+  , BinOpInstr(..)
+  , UnOpInstr(..)
+  , RelOpInstr(..)
   , WasmVal(..)
-  , Block(..)
   , Param(..)
   , Result(..)
+  , getResult
   , SignedNess(..)
   , parse
   , function
@@ -23,7 +25,8 @@ import Data.List
 import WasmTypes(WasmType(..), WasmVal(..))
 
 data Instr
-  = Bl [WasmType] [Instr]
+  = Const WasmVal
+  | Block [WasmType] [Instr]
   | Br Integer
   | BrIf Integer
   | If [WasmType] [Instr] [Instr]
@@ -32,32 +35,37 @@ data Instr
   | LocalGet String
   | LocalSet String
   | LocalTee String
-  | Numeric TypedInstr
+  | Binary WasmType BinOpInstr
+  | Unary WasmType UnOpInstr
+  | Compare WasmType RelOpInstr
   | Nop
   | Unreachable
   deriving (Show, Eq)
 
-data TypedInstr
-  = Const WasmVal
-  | Add WasmType
-  | Sub WasmType
-  | Mul WasmType
-  | Div WasmType SignedNess   -- TODO: keep it like this, or introduce seperate Div instructions (one for floats, and signed and unsigned)
-  | Rem WasmType SignedNess
-  | And WasmType
-  | Or WasmType
-  | Xor WasmType
-  | Abs WasmType
-  | Neg WasmType
-  | Eql WasmType
-  deriving (Show, Eq)
+data BinOpInstr
+  = Add
+  | And
+  | Sub
+  | Mul
+  | Div SignedNess
+  | Or
+  | Xor deriving (Show, Eq)
+
+data UnOpInstr
+  = Neg
+  | Abs deriving (Show, Eq)
+
+data RelOpInstr
+  = Eql deriving (Show, Eq)
 
 data Param = Param {getName :: String, getValue :: WasmType} deriving (Show, Eq)
 data Result = Result WasmType deriving (Show, Eq)
 data SignedNess = Signed | Unsigned deriving (Show, Eq)
-data Block = Block [Result] [Instr] deriving (Show, Eq)
-data Func = Func String [Param] Block deriving (Show, Eq)
+data Func = Func String [Param] [Result] [Instr] deriving (Show, Eq)
 data WasmModule = WasmModule [Func] deriving (Show, Eq)
+
+getResult :: Result -> WasmType
+getResult (Result t) = t
 
 isInt :: WasmType -> Bool
 isInt I32 = True
@@ -69,7 +77,6 @@ isFloat F32 = True
 isFloat F64 = True
 isFloat _   = False
 
-
 -- Parse a function body consisting of a mix of plain and foldedinstructions
 parseBody :: Parser [Instr]
 parseBody = do
@@ -78,14 +85,17 @@ parseBody = do
     rest <- parseBody <|> return []
     return $ instructions ++ rest
 
-parseInstruction 
-  = parseBlock 
+parseInstruction
+  = parseBlock
   <|> parseLoop
   <|> parseBranch
   <|> parseIf
-  <|> parseGetLocal 
-  <|> parseSetLocal 
-  <|> parseNumericInstr 
+  <|> parseGetLocal
+  <|> parseSetLocal
+  <|> parseConst
+  <|> parseBinaryInstr
+  <|> parseUnaryInstr
+  <|> parseCompareInstr
   <|> parens parseInstruction
 
 -- Parse instructions that are folded into an S-expression
@@ -100,7 +110,7 @@ parseBlock = do
   keyword "block"
   instr <- parseBody
   keyword "end"
-  return $ Bl [] instr
+  return $ Block [] instr
 
 parseLoop :: Parser Instr
 parseLoop = do
@@ -110,7 +120,7 @@ parseLoop = do
   return $ Loop [] instr
 
 parseBranch :: Parser Instr
-parseBranch = 
+parseBranch =
   (keyword "br" >> return Br <*> integer)
   <|> (keyword "br_if" >> return BrIf <*> integer)
 
@@ -135,52 +145,71 @@ parseSetLocal = do
   return LocalSet <*> identifier
 
 parseConst :: Parser Instr
-parseConst = do
+parseConst = try $ do
   t <- parseType
   _ <- dot
   _ <- keyword "const"
   case t of
-        F32 -> Numeric . Parser.Const . F32Val <$> float
-        F64 -> Numeric . Parser.Const . F64Val <$> float
-        I32 -> Numeric . Parser.Const . I32Val <$> integer
-        I64 -> Numeric . Parser.Const . I64Val <$> integer
+        F32 -> Parser.Const . F32Val <$> float
+        F64 -> Parser.Const . F64Val <$> float
+        I32 -> Parser.Const . I32Val <$> integer
+        I64 -> Parser.Const . I64Val <$> integer
 
-parseNumericInstr :: Parser Instr
-parseNumericInstr = try parseConst <|> do
+parseBinaryInstr :: Parser Instr
+parseBinaryInstr = try $ do
   t <- parseType
   _ <- dot
   i <- anyKeyword
   typedInstr <- case t of
-    t | isInt t   -> makeII i t
-    t | isFloat t -> makeFI i t
-  return (Numeric typedInstr)
+    t | isInt t   -> makeBinII i
+    t | isFloat t -> makeBinFI i
+  return (Binary t typedInstr)
 
--- makeIntegerInstruction
-makeII :: String -> WasmType -> Parser TypedInstr
-makeII "add" t   = return $ Add t
-makeII "sub" t   = return $ Sub t
-makeII "mul" t   = return $ Mul t
-makeII "div_s" t = return $ Div t Signed
-makeII "div_u" t = return $ Div t Unsigned
-makeII "rem_s" t = return $ Rem t Signed
-makeII "rem_u" t = return $ Rem t Unsigned
-makeII "and" t   = return $ And t
-makeII "or"  t   = return $ Or t
-makeII "xor" t   = return $ Xor t
-makeII "eq" t    = return $ Eql t
+parseUnaryInstr :: Parser Instr
+parseUnaryInstr = try $ do
+  t <- parseType
+  _ <- dot
+  i <- anyKeyword
+  typedInstr <- case t of
+    t | isInt t   -> makeUnII i
+    t | isFloat t -> makeUnFI i
+  return (Unary t typedInstr)
 
-makeII str   t   = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
+parseCompareInstr :: Parser Instr
+parseCompareInstr = try $ do
+  t <- parseType
+  _ <- dot
+  i <- keyword "eq"
+  return (Compare t Eql)
 
--- makeFloatInstruction
-makeFI :: String -> WasmType -> Parser TypedInstr
-makeFI "add" t = return $ Add t
-makeFI "sub" t = return $ Sub t
-makeFI "mul" t = return $ Mul t
-makeFI "div" t = return $ Div t Signed
-makeFI "abs" t = return $ Abs t
-makeFI "neg" t = return $ Neg t
-makeFI "eq"  t = return $ Eql t
-makeFI str   t = error $ "Not a valid instruction: " ++ str ++ " with type: " ++ show t
+
+-- make Integer Binary Instr
+makeBinII :: String -> Parser BinOpInstr
+makeBinII "add"   = return Add
+makeBinII "sub"   = return Sub
+makeBinII "mul"   = return Mul
+makeBinII "div_s" = return $ Div Signed
+makeBinII "div_u" = return $ Div Unsigned
+makeBinII "and"   = return And
+makeBinII "or"    = return Or
+makeBinII "xor"   = return Xor
+makeBinII str     = fail $ "Not a valid binary integer instruction: " ++ str
+
+-- make Float Binary Instr
+makeBinFI :: String -> Parser BinOpInstr
+makeBinFI "add" = return Add
+makeBinFI "sub" = return Sub
+makeBinFI "mul" = return Mul
+makeBinFI "div" = return $ Div Signed
+makeBinFI str   = fail $ "Not a valid binary float instruction: " ++ str
+
+makeUnII :: String -> Parser UnOpInstr
+makeUnII str = fail $ "Not a valid unary integer instruction: " ++ str
+
+makeUnFI :: String -> Parser UnOpInstr
+makeUnFI "neg" = return Neg
+makeUnFI "abs" = return Abs
+makeUnFI str   = fail $ "Not a valid unary float instruction: " ++ str
 
 parseType :: Parser WasmType
 parseType =  (keyword "i32" >> return I32)
@@ -210,7 +239,7 @@ function = parens $ do
   params <- many $ try param
   resultTypes <- many $ try parseResultType
   instr  <- parseBody
-  return $ Func idstr params $ Block resultTypes instr
+  return $ Func idstr params resultTypes instr
 
 
 -- TODO: currently only handles function definitions, not exports etc

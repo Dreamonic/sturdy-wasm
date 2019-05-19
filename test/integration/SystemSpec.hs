@@ -28,11 +28,11 @@ tsFunctions = describe "functions" $ do
     testNestedBlocks
 
 
--- Tests --  
+-- Tests --
 
 
 testStep = it "Test the step function for add" $
-    step (Config (FrameT EmptyInst Map.empty) (Code [I32Val 1, I32Val 2] [Plain (Numeric (Add I32))])) `shouldBe`
+    step (Config (FrameT EmptyInst Map.empty) (Code [I32Val 1, I32Val 2] [Plain (Binary I32 Add)])) `shouldBe`
     (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] []))
 
 programT = "(func $add \n\
@@ -134,10 +134,10 @@ programT6 = "(func $add (param $x i32) (result i32)\n\
     \get_local $x\n\
     \)"
 
-functionT6 = do 
+functionT6 = do
     parseFunc Parser.function programT6
 
-testPrint = it "Print" $ functionT6 `shouldBe` Func "" [] (Block [] [])
+testPrint = it "Print" $ functionT6 `shouldBe` Func "" [] [] []
 
 testT6 = it "Loop test" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT6)]))
@@ -152,7 +152,7 @@ programT8 = "(func $add (param $x i32) (result i32)\n\
     \end\n\
     \)"
 
-functionT8 = do 
+functionT8 = do
     parseFunc Parser.function programT8
 
 testT8 = it "Loop test" $
@@ -174,7 +174,7 @@ programNestedBlocks = "(func $add (param $x i32) (result i32)\n\
     \get_local $x\n\
     \)"
 
-functionNestedBlocks = 
+functionNestedBlocks =
     parseFunc Parser.function programNestedBlocks
 
 testNestedBlocks = it "Test nested blocks" $
