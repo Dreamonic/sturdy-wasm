@@ -23,6 +23,7 @@ module MonadicExecutor(
     , hasInstr
     , retrieveStack
     , getStack
+    , throwError
 ) where
 
 import qualified Data.Map as Map
@@ -180,3 +181,7 @@ findLocal :: String -> Locals -> Either String WasmVal
 findLocal id locals = case Map.lookup id locals of
   Just v -> Right v
   Nothing -> Left ("The id: '" ++ id ++ "' was not bound")
+
+
+throwError :: String -> MExecutor ()
+throwError err = Env (\config -> (Left err, config))

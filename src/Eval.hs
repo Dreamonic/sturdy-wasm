@@ -49,6 +49,7 @@ step (Plain e) = case e of
                             b <- pop ;
                             push $ boolToWasm (a == b) }
         Const v ->          push v
+        err ->              throwError ("Not implemented Numeric: " ++ show err)
 
     Bl tps es ->    do {    let len = length tps in
                             let c = code es in
@@ -77,13 +78,13 @@ step (Plain e) = case e of
     LocalSet v ->   do {    val <- pop ;
                             setVar v val }
 
-    err ->                  error ("Not implemented Plain: " ++ show err)
+    err ->                  throwError ("Not implemented Plain: " ++ show err)
 
 step (Invoke (Closure _ (Func name params (Block _ instr)))) = do {
     parseBinds params ;
     putInstrList (fmap Plain instr) }
 
-step err = error ("Not implemented instruction: " ++ show err)
+step err = throwError ("Not implemented instruction: " ++ show err)
 
 parseBinds :: [Param] -> MExecutor ()
 parseBinds ps = case ps of
