@@ -80,23 +80,28 @@ label n c = Label n [] c
 -- code :: [Instr] -> Code
 -- code es = Code [] (fmap Plain es)
 
-newtype MExecutor a = Env (Config -> (a, Config))
+newtype MExecutor a = Env (Config -> (Either String a, Config))
 
 instance Functor MExecutor where
     fmap f e = Env (\n ->   let (a, n1) = (unEnv e) n
-                            in  (f a, n1))
+                            in  case a of
+                                Left msg -> (a, n1)
+                                Right a1 -> (f a1, n1))
 
 instance Applicative MExecutor where
     pure = return
     f <*> v = Env (\n ->    let (a, n1) = (unEnv f) n
                                 (b, n2) = (unEnv v) n1
-                            in  (a b, n2))
+                            in  case (unEnv f n, b) of
+                                (Left msg1, Left msg2) -> (Left (msg1 ++ msg2), n2)
+                                (Left msg1, _) -> (a, n2)
+                                (_, Left msg2) -> (b, n2)
+                                _ -> (a b, n2))
 
 instance Monad MExecutor where
     return x = Env (\n -> (x, n))
     e >>= f = Env (\n ->    let (a, n1) = (unEnv e) n
-                                (b, n2) = unEnv (f a) n1
-                            in  (b, n2))
+                                fmap f n1
 
 code :: [Instr] -> Code
 code es = Code [] (fmap Plain es)
