@@ -101,7 +101,7 @@ parseBlock = do
   t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
-  return $ Bl [] instr
+  return $ Bl (fmap (\(Result x) -> x) t) instr
 
 parseLoop :: Parser Instr
 parseLoop = do

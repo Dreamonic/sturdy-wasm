@@ -111,7 +111,7 @@ instance Monad MExecutor where
 code :: [Instr] -> Code
 code es = Code [] (fmap Plain es)
 
--- |    Initialize the Config to Config with no locals, 
+-- |    Initialize the Config to Config with no locals,
 --      an empty value stack, and an empty execution stack.
 initConfig :: Stack WasmVal -> AdminInstr -> Config
 initConfig vs e = Config (FrameT EmptyInst Map.empty) (Code [] [label 1 (Code vs [e])])
@@ -124,13 +124,54 @@ unEnv (Env e) = e
 getStack :: Config -> Stack WasmVal
 getStack = view (confCode . stack)
 
+-- |    Get the stack of the innermost label (active label).
+--
+--      [@conf@] The config containg all the necessary information.
+getInnerStack :: Config -> Stack WasmVal
+getInnerStack conf =
+    case view (confCode . instr) conf of
+        [] -> getStack conf
+        i:_ -> 
+            let n = findPosition i in                           -- Find the position of the innermost label
+            case n of 
+                0 -> getStack conf
+                _ ->    let Label _ _ (Code vs _) = goToPosition n i in     -- Go to the innermost label
+                        vs                                                  -- Retrieve the stack
+
 -- |    Set the stack of a Config.
 setStack :: Stack WasmVal -> Config -> Config
 setStack vs conf= set (confCode . stack) vs conf
 
+-- |    Set the stack of the innermost label (active label).
+--
+--      [@conf@] The config containg all the necessary information.
+setInnerStack :: Stack WasmVal -> Config -> Config
+setInnerStack vs conf = 
+    case view (confCode . instr) conf of
+        [] -> setStack vs conf
+        i:is ->
+            let n = findPosition i in                                               -- Find the position of the innermost label
+            let Label rets ends (Code _ iss) = goToPosition n i in                  -- Go to the innermost label
+            let i' = replaceAtPosition (n-1) (Label rets ends (Code vs iss)) i in   -- Exchange the old stack with the new stack
+                set (confCode . instr) (i':is) conf                                 -- Return the new config with the updated stack
+
 -- |    Push a single WasmVal to the top of the stack of a Config.
 pushToStack :: WasmVal -> Config-> Config
 pushToStack v = over (confCode . stack) ((:) v)
+
+-- |    Push a value to the top of the stack of the innermost label.
+--
+--      [@v@]       The value that should be pushed to the top of the stack.
+--      [@conf@]    The old configuration containing all necessary information.
+pushToInnerStack :: WasmVal -> Config -> Config
+pushToInnerStack v conf = setInnerStack (v:(getInnerStack conf)) conf
+
+-- |    Push a value to the top of the stack of the innermost label.
+--
+--      [@vs@]       The value that should be pushed to the top of the stack.
+--      [@conf@]    The old configuration containing all necessary information.
+pushStackToInnerStack :: Stack WasmVal -> Config -> Config
+pushStackToInnerStack vs conf = setInnerStack (vs++(getInnerStack conf)) conf
 
 -- |    Pop the top most value from the innermost stack of a Config.
 popFromStack :: Config -> (Either String WasmVal, Config)
@@ -138,11 +179,21 @@ popFromStack conf = case getStack conf of
     [] -> (Left "Cannot pop an empty stack", conf)
     v:vs -> (Right v, setStack vs conf)
 
+-- |    Pop the top value from the stack of the innermost label.
+--
+--      [@conf@]    The old configuration containing all necessary information.
+popFromInnerStack :: Config -> (Either String WasmVal, Config)
+popFromInnerStack conf = case getInnerStack conf of
+    [] -> (Left "Cannot pop an empty stack", conf)
+    v:vs -> (Right v, setInnerStack vs conf)
+
 popFromInstr :: Config -> (Either String AdminInstr, Config)
 popFromInstr conf = case view (confCode . instr) conf of
     [] -> (Left "Cannot pop an empty instruction stack", conf)
-    l ->    let (i, is) = findInnerInstr l
-            in traceShow (i, view confCode conf) $ (Right i, set (confCode . instr) is conf)
+    i:is -> let n = findPosition i in
+            let Just ret = getFromPosition n i in
+            let i' = removeAtPosition n i in
+                (Right ret, set (confCode . instr) (i':is) conf)
 
 findInnerInstr :: [AdminInstr] -> (AdminInstr, [AdminInstr])
 findInnerInstr instr = case instr of
@@ -156,11 +207,11 @@ removeLabel (Label n is (Code vs code)) rep = case code of
 
 -- |    Push a WasmVal onto the value stack.
 push :: WasmVal -> MExecutor ()
-push v = Env (\config -> (Right (), (pushToStack v config)))
+push v = Env (\config -> (Right (), (pushToInnerStack v config)))
 
 -- |    Pop a single WasmVal from the value stack.
 pop :: MExecutor WasmVal
-pop = Env (\config -> popFromStack config)
+pop = Env (\config -> popFromInnerStack config)
 
 -- |    Put a value into the local environment
 setVar :: String -> WasmVal -> MExecutor () 
@@ -172,7 +223,12 @@ getVar id = Env (\config -> (findLocal id (view (confFrame . locals) config), co
 
 -- |    Put an instruction on the execution stack.
 putInstr :: AdminInstr -> MExecutor ()
-putInstr i = Env (\config -> (Right (), over (confCode . instr) ((:) i) config))
+putInstr ins = Env (\config -> (Right (), 
+    let i:is = view (confCode . instr) config in
+    let n = findPosition i in
+    let (Label rets ends (Code vs is)) = goToPosition n i in
+    let i' = replaceAtPosition (n-1) (Label rets ends (Code vs (ins:is))) i in
+        set (confCode . instr) (i':is) config))
 
 -- |    Put a list of instructions on the execution stack.
 putInstrList :: [AdminInstr] -> MExecutor ()
@@ -183,23 +239,33 @@ getInstr :: MExecutor AdminInstr
 getInstr = Env (\config -> popFromInstr config)
 
 putBlock :: Block -> MExecutor ()
-putBlock (Block _ is) = traceShow (label 1 (Code [] (fmap Plain is))) putInstr $ label 1 (Code [] (fmap Plain is))
+putBlock (Block _ is) = putInstr $ label 1 (Code [] (fmap Plain is))
 
+-- |    Check whether there are more instructions to be executed.
 hasInstr :: MExecutor Bool
 hasInstr = Env (\conf -> 
-    let config = removeEmptyLabels conf in
-    case view (confCode . instr) config of
-        [] -> (Right False, config)
-        _ -> (Right True, config))
+    let config = removeEmptyLabels conf in      -- Remove all labels with no instructions left
+    case view (confCode . instr) config of      -- Retrieve the instructions
+        [] -> (Right False, config)             -- If there are no more instructions, return false
+        _ -> (Right True, config))              -- otherwise return true
 
+-- |    Remove all empty labels recursively, or do nothing whenever
+--      there are still instructions left within the label.
+--      This does not add the end instructions to the instruction stack of the outer label.
 removeEmptyLabels :: Config -> Config
 removeEmptyLabels conf = case view (confCode . instr) conf of
     [] -> conf
-    label:is -> let pos = findPosition label
-                in case getFromPosition pos label of
-                    Nothing | pos <= 0 -> set (confCode . instr) [] conf
-                    Nothing -> removeEmptyLabels $ set (confCode. instr) ((removeAtPosition (pos-1) label):is) conf
-                    Just _ -> conf
+    label:is -> let pos = findPosition label in                                                     -- Find the position of the innermost label
+                let Label rets _ (Code vs _) = goToPosition pos label in
+                let stack = take rets vs in
+                    case getFromPosition pos label of                                               -- Retrieve the instruction from the label
+                        Nothing | pos <= 1 -> removeEmptyLabels $ 
+                            pushStackToInnerStack stack
+                                (set (confCode . instr) is conf)    -- If there are no instructions, remove it
+                        Nothing -> removeEmptyLabels $ 
+                            pushStackToInnerStack stack 
+                                (set (confCode . instr) ((removeAtPosition (pos - 1) label):is) conf)
+                        Just _ -> conf                                                              -- otherwise do nothing
 
 -- |    Retrieve the top most value of the outer stack.
 retrieveStack :: MExecutor (Stack WasmVal)
@@ -261,9 +327,10 @@ replaceAtPosition n newInstr instr = case n of
 --      [@i@]       The instruction at the top of the stack.
 --      [@is@]      The other instructions on the stack.
 removeAtPosition :: Integer -> AdminInstr -> AdminInstr
-removeAtPosition n (Label rets ends (Code vs (i:is))) = case n of
-    1 -> Label rets ends (Code vs is)
-    _ -> Label rets ends (Code vs ((removeAtPosition (n-1) i):is))
+removeAtPosition n (Label rets ends (Code vs (i:is))) =
+    case n of
+        1 -> Label rets ends (Code vs is)
+        _ -> Label rets ends (Code vs ((removeAtPosition (n-1) i):is))
 
 -- |    Find a local variable from local environment.
 findLocal :: String -> Locals -> Either String WasmVal
