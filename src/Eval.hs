@@ -5,6 +5,7 @@ module Eval (
 import MonadicExecutor
 import Parser
 import WasmTypes
+import Debug.Trace
 
 execFunc :: [WasmVal] -> Func -> Either String (Stack WasmVal)
 execFunc vs func = 
@@ -80,9 +81,14 @@ step (Plain e) = case e of
 
     err ->                  throwError ("Not implemented Plain: " ++ show err)
 
-step (Invoke (Closure _ (Func name params (Block _ instr)))) = do {
+step (Invoke (Closure _ (Func name params block))) = do {
     parseBinds params ;
-    putInstrList (fmap Plain instr) }
+    putBlock block }
+
+step (Breaking levels vs) = case levels of
+    0 ->        endLabel
+    n -> do {   branchUp;
+                putInstr (Breaking (n-1) vs) }
 
 step err = throwError ("Not implemented instruction: " ++ show err)
 

@@ -98,6 +98,7 @@ parseFolded = parens $ do
 parseBlock :: Parser Instr
 parseBlock = do
   keyword "block"
+  t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
   return $ Bl [] instr
