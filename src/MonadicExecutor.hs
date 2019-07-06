@@ -312,7 +312,8 @@ getFromPosition n instr =
 --                      the indicated label should be replaced with.
 --      [@instr@]       The main instruction, which in most cases will be the outermost label.     
 replaceAtPosition :: Integer -> AdminInstr -> AdminInstr -> AdminInstr
-replaceAtPosition n newInstr instr = case n of
+replaceAtPosition n newInstr instr = 
+    case n of
     0 -> newInstr
     _ ->    let Label rets ends (Code vs (i:is)) = instr
             in Label rets ends (Code vs ((replaceAtPosition (n-1) newInstr i):is))
@@ -339,10 +340,25 @@ findLocal id locals = case Map.lookup id locals of
   Nothing -> Left ("The id: '" ++ id ++ "' was not bound")
 
 branchUp :: MExecutor ()
-branchUp = Env (\config -> (Right (), config))
+branchUp = Env (\config -> 
+    case view (confCode . instr) config of
+        [] -> (Left "Cannot branch up more than the root", config)
+        i:is -> 
+            let n = findPosition i in
+            let Label rets ends (Code vs (i':is')) = goToPosition (n-1) i in
+            let Label r2 _ (Code vs2 _) = goToPosition n i in
+            let i'' = replaceAtPosition (n-2) (Label rets ends (Code ((take r2 vs2)++vs) is')) i in
+                (Right (), set (confCode . instr) (i'':is) config))
 
 endLabel :: MExecutor ()
-endLabel = Env (\config -> (Right (), config))
+endLabel = Env (\config -> case view (confCode . instr) config of
+    [] -> (Left "Cannot branch up more than the root", config)
+    i:is -> 
+        let n = findPosition i in
+        let Label rets ends (Code vs (i':is')) = goToPosition (n-1) i in
+        let Label r2 e2 (Code vs2 _) = goToPosition n i in
+        let i'' = replaceAtPosition (n-2) (Label rets ends (Code ((take r2 vs2)++vs) ((fmap Plain e2)++is'))) i in
+            (Right (), set (confCode . instr) (i'':is) config))
 
 throwError :: String -> MExecutor ()
 throwError err = Env (\config -> (Left err, config))
