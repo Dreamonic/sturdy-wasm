@@ -109,10 +109,11 @@ checkM e = case e of
     Unreachable -> do
         setUnreachableM
 
-    Const t -> do
+    Const val -> do
+        let t = getType val
         pushM $ Actual t
 
-    Binary t -> do
+    Binary t _ -> do
         popM $ Actual t
         popM $ Actual t
         pushM $ Actual t
@@ -123,7 +124,7 @@ checkM e = case e of
         checkLabel t t falseBr
         forM_ (known t) pushM
     
-    Bl t ops' -> do
+    Block t ops' -> do
         checkLabel t t ops'
         forM_ (known t) pushM
 
@@ -144,7 +145,7 @@ checkLabel labels results ops' = do
     popCtrlM
 
 checkFunc :: Func -> M ()
-checkFunc (Func _ params (Block results instr)) = do
+checkFunc (Func _ params results instr) = do
     let params' = map getValue params
     let results' = [t | (Result t) <- results]
     forM_ params' pushLocal

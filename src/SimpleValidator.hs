@@ -1,6 +1,6 @@
 module SimpleValidator where
 
-import Parser(Instr(..), TypedInstr(..))
+import Parser(Instr(..))
 import WasmTypes
 import Control.Monad
 
@@ -95,33 +95,3 @@ setUnreachable ctx @ (Context ops' (f:fs) _) = ctx {
     frames = (f { unreachable = True } ):fs, 
     ops = drop ((length ops') - (height f)) ops'
     }
-
-type Arrow = ([InferType], [InferType])
-
-(-->) :: [ValType] -> [ValType] -> Arrow
-(-->) ts1 ts2 = (known ts1, known ts2)
-
-checkInstr :: Context -> Instr -> [InferType] -> Arrow
-checkInstr ctx e s = case e of
-    Const t -> 
-        [] --> [t]
-
-    Binary t ->
-        [t, t] --> [t]
-
-checkSeq :: Context -> [Instr] -> Either String Context
-checkSeq ctx es = case es of
-    [] -> 
-        Right $ ctx { ops = [] }
-
-    _ -> do
-        let e = last es
-        let es' = init es 
-        ctx1 <- checkSeq ctx es'
-        let (pops, pushes) = checkInstr ctx e (ops ctx1)
-        ctx2 <- pop pops ctx1 
-        return $ push pushes ctx2
-
-validSeq ctx ops = case checkSeq ctx ops of
-    Left err -> err
-    Right (Context ops _ _) -> "Valid, end=" ++ show ops
