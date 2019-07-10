@@ -2,13 +2,102 @@ module Validator where
 
 import Parser
 import WasmTypes
-import SimpleValidator
 import Control.Monad
 
+type ValType = WasmType
+data InferType = Actual ValType | Unknown deriving (Show, Eq)
+
+type StackType = [ValType]
+
+type FuncType = (StackType, StackType)
+
+data Frame = Frame {
+    labels :: [ValType],
+    results :: [ValType],
+    height :: Int,
+    unreachable :: Bool
+} deriving (Show, Eq)
+
+data Context = Context {
+    ops :: [InferType],
+    frames :: [Frame],
+    locals :: [ValType]
+    -- funcs :: [FuncType]
+    -- globals
+    -- memories
+    -- tables
+} deriving (Show, Eq)
+
+emptyCtx = Context [] [] []
+
+known :: [ValType] -> [InferType]
+known xs = map Actual xs
+
+pushOp :: InferType -> Context -> Context
+pushOp op ctx = ctx { ops = op:(ops ctx) }
+
+push :: [InferType] -> Context -> Context
+push ops' ctx = ctx { ops = (reverse ops') ++ (ops ctx) }
+
+equalType :: InferType -> InferType -> Bool
+equalType t1 t2 = t1 == t2 || t1 == Unknown || t2 == Unknown
+
+checkStack :: [InferType] -> [InferType] -> Bool
+checkStack ts1 ts2 = (length ts1) == (length ts2) && (and $ zipWith equalType ts1 ts2)
+
+currentFrame :: Context -> Frame
+currentFrame ctx = head $ frames ctx
+
+popOp :: InferType -> Context -> Either String (InferType, Context)
+popOp expect ctx = do
+    let ops' = ops ctx
+    let currentFrame' = currentFrame ctx
+    actual <- do
+        if length ops' == height currentFrame' then
+            if unreachable currentFrame' then Right Unknown else Left "Underflow occured"
+        else
+            Right $ head ops'
+    case (actual, expect) of
+        (Actual a, Actual b) -> 
+            if a == b then 
+                return $ (actual, ctx { ops = drop 1 ops' })
+            else Left $ "Expected: " ++ show expect ++ " but got: " ++ show actual
+        otherwise -> return (actual, ctx { ops = drop 1 ops' })
+
+pop :: [InferType] -> Context -> Either String Context
+pop expected ctx = do
+    let cFrame = currentFrame ctx
+    let stack = ops ctx
+    let ex = length expected
+    let st = length stack - height cFrame
+    let min' = min ex st
+    let padding = if unreachable cFrame then (ex - min') else 0
+    if checkStack expected ((take min' stack) ++ (replicate padding Unknown)) then
+        Right $ ctx { ops = drop min' stack }
+    else
+        Left $ "Expected: " ++ show expected ++ " but got: " ++ show (take min' stack)
+
+pushCtrl :: [ValType] -> [ValType] -> Context -> Context
+pushCtrl labels results ctx = do
+    let frame = Frame labels results (length $ ops ctx) False
+    ctx { frames = frame:(frames ctx) }
+
+popCtrl :: Context -> Either String Context
+popCtrl (Context _ [] _) = Left "Can't pop frame from empty stack"
+popCtrl ctx @ (Context _ (f:fs) _) = do
+    ctx' <- pop (known $ results f) ctx
+    when ((length $ ops ctx') /= height f) (Left $ "Type mismatch in block")
+    return $ ctx' { frames = fs }
+
+setUnreachable :: Context -> Context
+setUnreachable ctx @ (Context _ [] _) = ctx
+setUnreachable ctx @ (Context ops' (f:fs) _) = ctx { 
+    frames = (f { unreachable = True } ):fs, 
+    ops = drop ((length ops') - (height f)) ops'
+    }
+
 -- State and Output function
--- An Either monad could have been used
 -- but a similar monad to the executor is used
--- The resulting value is ignored
 newtype M a = Env (Context -> Either String (a, Context))
 unpack (Env f) = f
 
@@ -106,24 +195,10 @@ setUnreachableM = Env $ \ctx -> Right ((), setUnreachable ctx)
 -- | Typecheck single instruction under context
 checkM :: Instr -> M ()
 checkM e = case e of
-    Unreachable -> do
-        setUnreachableM
-
     Const val -> do
         let t = getType val
         pushM $ Actual t
-
-    Binary t _ -> do
-        popM $ Actual t
-        popM $ Actual t
-        pushM $ Actual t
-
-    If t trueBr falseBr -> do
-        popM $ Actual I32
-        checkLabel t t trueBr
-        checkLabel t t falseBr
-        forM_ (known t) pushM
-    
+        
     Block t ops' -> do
         checkLabel t t ops'
         forM_ (known t) pushM
@@ -133,6 +208,39 @@ checkM e = case e of
         failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
         frame <- peekCtrlM n
         forM_ (known $ labels frame) popM
+        setUnreachableM
+
+    BrIf levels -> do
+        let n = fromInteger levels
+        failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
+        popM $ Actual I32
+        frame <- peekCtrlM n
+        forM_ (known $ labels frame) popM
+        forM_ (known $ labels frame) pushM
+        
+    If t trueBr falseBr -> do
+        popM $ Actual I32
+        checkLabel t t trueBr
+        checkLabel t t falseBr
+        forM_ (known t) pushM
+
+    Loop t ops' -> do
+        checkLabel [] t ops'
+        forM_ (known t) pushM
+
+    Binary t _ -> do
+        popM $ Actual t
+        popM $ Actual t
+        pushM $ Actual t
+
+    Unary t _ -> do
+        popM $ Actual t
+        pushM $ Actual t
+
+    Nop -> do
+        return ()
+
+    Unreachable -> do
         setUnreachableM
 
 checkSeqM :: [Instr] -> M ()
@@ -153,10 +261,6 @@ checkFunc (Func _ params results instr) = do
     checkSeqM instr
     popCtrlM
     replicateM_ (length params) popLocal
-
-check m = case unpack m emptyCtx of
-    Left err -> err
-    Right r  -> "Valid"
 
 printRes :: M t -> Context -> IO ()
 printRes m ctx = case unpack m $ ctx of
