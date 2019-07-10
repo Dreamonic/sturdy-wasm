@@ -3,6 +3,7 @@ module Validator where
 import Parser
 import WasmTypes
 import Control.Monad
+import Data.List
 
 type ValType = WasmType
 data InferType = Actual ValType | Unknown deriving (Show, Eq)
@@ -21,14 +22,15 @@ data Frame = Frame {
 data Context = Context {
     ops :: [InferType],
     frames :: [Frame],
-    locals :: [ValType]
+    locals :: [ValType],
+    localsMap :: [String]
     -- funcs :: [FuncType]
     -- globals
     -- memories
     -- tables
 } deriving (Show, Eq)
 
-emptyCtx = Context [] [] []
+emptyCtx = Context [] [] [] []
 
 known :: [ValType] -> [InferType]
 known xs = map Actual xs
@@ -83,15 +85,15 @@ pushCtrl labels results ctx = do
     ctx { frames = frame:(frames ctx) }
 
 popCtrl :: Context -> Either String Context
-popCtrl (Context _ [] _) = Left "Can't pop frame from empty stack"
-popCtrl ctx @ (Context _ (f:fs) _) = do
+popCtrl (Context _ [] _ _) = Left "Can't pop frame from empty stack"
+popCtrl ctx @ (Context _ (f:fs) _ _) = do
     ctx' <- pop (known $ results f) ctx
     when ((length $ ops ctx') /= height f) (Left $ "Type mismatch in block")
     return $ ctx' { frames = fs }
 
 setUnreachable :: Context -> Context
-setUnreachable ctx @ (Context _ [] _) = ctx
-setUnreachable ctx @ (Context ops' (f:fs) _) = ctx { 
+setUnreachable ctx @ (Context _ [] _ _) = ctx
+setUnreachable ctx @ (Context ops' (f:fs) _ _) = ctx { 
     frames = (f { unreachable = True } ):fs, 
     ops = drop ((length ops') - (height f)) ops'
     }
@@ -160,18 +162,28 @@ peekCtrlM i = Env $ \ctx -> do
     when (i >= length frames') $ Left $ "Index " ++ show i ++ " of frame stack is out of range"
     return (frames' !! i, ctx)
 
+-- | Check if name is in localsMap and return index
+getLocalIndex :: String -> M Int
+getLocalIndex name = Env $ \ctx -> do
+    let localsMap' = localsMap ctx
+    case elemIndex name localsMap' of
+        Just i -> return (i, ctx)
+        Nothing -> Left $ name ++ " does not exist"
+
 -- | Push single value on locals stack
-pushLocal :: ValType -> M ()
-pushLocal val = Env $ \ctx -> do
+pushLocal :: String -> ValType -> M ()
+pushLocal name val = Env $ \ctx -> do
     let locals' = locals ctx
-    return ((), ctx { locals = val:locals' })
+    let localsMap' = localsMap ctx
+    return ((), ctx { locals = val:locals', localsMap = name:localsMap'})
 
 -- | Pop single value from locals stack
 popLocal :: M ValType
 popLocal = Env $ \ctx -> do
     let locals' = locals ctx
+    let localsMap' = localsMap ctx
     when (length locals' == 0) $ Left "Cannot pop local from empty stack"
-    return (head locals', ctx { locals = tail locals' })
+    return (head locals', ctx { locals = tail locals', localsMap = tail localsMap'})
 
 -- | Get value at local[i], fails if locals[i] does not exist
 getLocal :: Int -> M ValType
@@ -183,9 +195,9 @@ getLocal i = Env $ \ctx -> do
 -- | Set local[i] to given value, fails if locals[i] does not exist
 setLocal :: Int -> ValType -> M ()
 setLocal i value = Env $ \ctx -> do
-    let (Context _ _ locals) = ctx
-    when (i >= length locals) $ Left $ "Index " ++ show i ++ " of local stack is out of range"
-    return ((), ctx { locals = update locals i value} )     -- ^ maybe change locals to Seq instead of List
+    let locals' = locals ctx
+    when (i >= length locals') $ Left $ "Index " ++ show i ++ " of local stack is out of range"
+    return ((), ctx { locals = update locals' i value} )     -- ^ maybe change locals to Seq instead of List
     where update xs n val = take n xs ++ [val] ++ drop (n + 1) xs
 
 -- | Sets the unreachable flag of current ctrl frame to True
@@ -224,6 +236,21 @@ checkM e = case e of
         checkLabel t t falseBr
         forM_ (known t) pushM
 
+    LocalGet name -> do
+        t <- getLocal <=< getLocalIndex $ name
+        pushM $ Actual t
+
+    LocalSet name -> do
+        t <- getLocal <=< getLocalIndex $ name
+        popM $ Actual t
+        return ()
+
+    LocalTee name -> do
+        t <- getLocal <=< getLocalIndex $ name
+        popM $ Actual t
+        pushM $ Actual t
+        -- ^ TODO make peek function to avoid duplication
+
     Loop t ops' -> do
         checkLabel [] t ops'
         forM_ (known t) pushM
@@ -254,9 +281,9 @@ checkLabel labels results ops' = do
 
 checkFunc :: Func -> M ()
 checkFunc (Func _ params results instr) = do
-    let params' = map getValue params
+    let params' = [(name, val) | (Param name val) <- params]
     let results' = [t | (Result t) <- results]
-    forM_ params' pushLocal
+    forM_ params' $ uncurry pushLocal
     pushCtrlM results' results'
     checkSeqM instr
     popCtrlM

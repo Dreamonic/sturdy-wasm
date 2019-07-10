@@ -17,6 +17,7 @@ spec = do
     blocks
     branching
     control
+    local
 
 basic = describe "basic" $ do
     testSimpleFunction
@@ -41,6 +42,10 @@ control = describe "control" $ do
     testInvalidIfBranch
     testValidLoop
     testValidInfiniteLoop
+
+local = describe "locals" $ do
+    testGetLocal
+    testSetLocal
 
 testSimpleFunction = do
     let fn = Func "" [] [Result I32] [Const (I32Val 1), Const (I32Val 1), Binary I32 Add]
@@ -121,6 +126,21 @@ testValidInfiniteLoop = do
     let fn = Func "" [] [Result I32] [Loop [I32] [Const (F32Val 0), Br 0, Const (I32Val 1)]]
     it "Infinite loop with correct result should validate correctly" $
         eval (checkFunc fn) `shouldBe` True
+
+testGetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [LocalGet "foo"]
+    it "Getting existing local should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testSetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I32Val 0), LocalSet "foo", LocalGet "foo"]
+    it "Setting correct local type should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testInvalodSetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I64Val 0), LocalSet "foo", LocalGet "foo"]
+    it "Setting incorrect local type should fail" $
+        eval (checkFunc fn) `shouldBe` False
 
 -- test = do
 --     let fn = 
