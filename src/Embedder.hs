@@ -33,9 +33,11 @@ cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pac
 loadFile :: Map.Map String Func -> String -> IO ()
 loadFile map filename = do
     contents <- readFile filename
-    func <- return $ parseWasm Parser.function $ cleanInput contents
-    map' <- return $ Map.insert (getFuncName func) func map
-    putStrLn ("Function loaded: " ++ (tail (getFuncName func)))
+    module' <- return $ parseWasm wasmModule $ cleanInput contents
+    funcs <- return $ getFuncsFromModule module'
+    -- map' <- return $ Map.fromList (map (\f -> (getFuncName f, f)) funcs)
+    map' <- return $ funcNameMap funcs
+    putStrLn ("Functions loaded: " ++ (show (Map.keys map')))
     wasmRepl map'
 
 callFunc :: Map.Map String Func -> [String] -> IO ()
@@ -50,6 +52,12 @@ callFunc map (f:xs) = do
 
 getFuncName :: Func -> String
 getFuncName (Func name _ _) = name
+
+getFuncsFromModule :: WasmModule -> [Func]
+getFuncsFromModule (WasmModule funcs) = funcs
+
+funcNameMap :: [Func] -> Map.Map String Func
+funcNameMap funcs = Map.fromList (map (\f -> (getFuncName f, f)) funcs)
 
 toWasmVals :: [String] -> [WasmVal]
 toWasmVals xs = case xs of

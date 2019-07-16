@@ -29,7 +29,7 @@ tsFunctions = describe "functions" $ do
     -- testNestedBlocks
 
 
--- Tests --  
+-- Tests --
 
 
 testStep = it "Test the step function for add" $
@@ -42,7 +42,7 @@ programT = "(func $add \n\
             \i32.const 3\n\
             \i32.add)"
 
-functionT = parseFunc Parser.function programT
+functionT = parseWasm Parser.function programT
 
 testT = it "Test simple function" $
     execRed functionT `shouldBe` (Config (FrameT EmptyInst Map.empty) (Code [I32Val 5] []))
@@ -53,7 +53,7 @@ programT2 = "(func $add (param $a i32)\n\
         \i32.const 3\n\
         \i32.add)"
 
-functionT2 = parseFunc Parser.function programT2
+functionT2 = parseWasm Parser.function programT2
 
 testT2 = it "Test using local variables" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 2] [Invoke (Closure EmptyInst functionT2)]))
@@ -67,7 +67,7 @@ programT3 = "(func $add (param $a i32)\n\
     \i32.const 3\n\
     \i32.add)"
 
-functionT3 = parseFunc Parser.function programT3
+functionT3 = parseWasm Parser.function programT3
 
 testT3 = it "Test setting local variables" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] [Invoke (Closure EmptyInst functionT3)]))
@@ -79,7 +79,7 @@ programT4 = "(func $add\n\
     \i32.const 1\n\
     \i32.eq)"
 
-functionT4 = parseFunc Parser.function programT4
+functionT4 = parseWasm Parser.function programT4
 
 testT4 = it "Test equals" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst functionT4)]))
@@ -91,7 +91,7 @@ programT5 = "(func $add\n\
     \i32.const 3\n\
     \i32.eq)"
 
-functionT5 = parseFunc Parser.function programT5
+functionT5 = parseWasm Parser.function programT5
 
 testT5 = it "Test equals" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst functionT5)]))
@@ -111,7 +111,7 @@ programT7 = "(func $add (param $a i32)\n\
     \i32.const 3\n\
     \i32.add)"
 
-functionT7 = parseFunc Parser.function programT7
+functionT7 = parseWasm Parser.function programT7
 
 testT7 = it "Test block" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] [Invoke (Closure EmptyInst functionT7)]))
@@ -135,8 +135,8 @@ programT6 = "(func $add (param $x i32) (result i32)\n\
     \get_local $x\n\
     \)"
 
-functionT6 = do 
-    parseFunc Parser.function programT6
+functionT6 = do
+    parseWasm Parser.function programT6
 
 testPrint = it "Print" $ functionT6 `shouldBe` Func "" [] (Block [] [])
 
@@ -153,8 +153,8 @@ programT8 = "(func $add (param $x i32) (result i32)\n\
     \end\n\
     \)"
 
-functionT8 = do 
-    parseFunc Parser.function programT8
+functionT8 = do
+    parseWasm Parser.function programT8
 
 testT8 = it "Loop test" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT8)]))
@@ -175,8 +175,8 @@ programNestedBlocks = "(func $add (param $x i32) (result i32)\n\
     \get_local $x\n\
     \)"
 
-functionNestedBlocks = 
-    parseFunc Parser.function programNestedBlocks
+functionNestedBlocks =
+    parseWasm Parser.function programNestedBlocks
 
 testNestedBlocks = it "Test nested blocks" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val (-1)] [Invoke (Closure EmptyInst functionNestedBlocks)]))
