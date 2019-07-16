@@ -11,7 +11,8 @@ module Parser(
   , SignedNess(..)
   , parse
   , function
-  , parseFunc
+  , parseWasm
+  , wasmModule
 ) where
 
 import Text.ParserCombinators.Parsec
@@ -78,14 +79,15 @@ parseBody = do
     rest <- parseBody <|> return []
     return $ instructions ++ rest
 
-parseInstruction 
-  = parseBlock 
+parseInstruction
+  = parseBlock
   <|> parseLoop
   <|> parseBranch
   <|> parseIf
-  <|> parseGetLocal 
-  <|> parseSetLocal 
-  <|> parseNumericInstr 
+  <|> parseGetLocal
+  <|> parseSetLocal
+  <|> parseCall
+  <|> parseNumericInstr
   <|> parens parseInstruction
 
 -- Parse instructions that are folded into an S-expression
@@ -110,7 +112,7 @@ parseLoop = do
   return $ Loop [] instr
 
 parseBranch :: Parser Instr
-parseBranch = 
+parseBranch =
   (keyword "br" >> return Br <*> integer)
   <|> (keyword "br_if" >> return BrIf <*> integer)
 
@@ -144,6 +146,11 @@ parseConst = do
         F64 -> Numeric . Parser.Const . F64Val <$> float
         I32 -> Numeric . Parser.Const . I32Val <$> integer
         I64 -> Numeric . Parser.Const . I64Val <$> integer
+
+parseCall :: Parser Instr
+parseCall = do
+    keyword "call"
+    return Call <*> identifier
 
 parseNumericInstr :: Parser Instr
 parseNumericInstr = try parseConst <|> do
@@ -214,19 +221,15 @@ function = parens $ do
 
 
 -- TODO: currently only handles function definitions, not exports etc
-parseModule :: Parser WasmModule
-parseModule = parens $ do
+wasmModule :: Parser WasmModule
+wasmModule = parens $ do
   keyword "module"
   functions <- many function
   return (WasmModule functions)
 
 watfunc = "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)"
 
-parseFunc :: Parser a -> String -> a
-parseFunc func str = case parse func "wasm lang" str of
+parseWasm :: Parser a -> String -> a
+parseWasm func str = case parse func "wasm lang" str of
   Left err  -> error $ "No match: " ++ show err
   Right val -> val
-
-parseFuncStr2show str = case parse function "wasm lang" str of
-  Left err  -> "No match: " ++ show err
-  Right val -> show val

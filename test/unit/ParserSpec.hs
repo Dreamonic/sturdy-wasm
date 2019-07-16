@@ -9,12 +9,12 @@ import WasmTypes
 -- Test suites --
 
 spec :: Spec
-spec = do 
+spec = do
     tsOfType
     tsToWasmI
     tsToWasmF
     tsParse
-    
+
 -- Linking tests to Test Suites --
 
 tsOfType :: Spec
@@ -25,7 +25,7 @@ tsOfType = describe "ofType" $ do
     testOfTypeF64
     testOfTypeI64NotI32
     testOfTypeF32NotI32
-    
+
 tsToWasmI :: Spec
 tsToWasmI = describe "toWasmI" $ do
     testToWasmI32
@@ -45,6 +45,8 @@ tsParse = describe "parse" $ do
     testParse
     testParseFolded
     testParseEmptyBody
+    testParseModuleOneFunc
+    testParseModuleMultipleFuncs
 
 -- Tests --
 
@@ -80,7 +82,7 @@ testToWasmIF32 = it "Creating an F32Val" $
 testToWasmIF64 = it "Creating an F64Val" $
     property $ \x -> toWasmI F64 (x::Integer) `shouldBe` F64Val (fromIntegral x)
 
---- toWasmF --- 
+--- toWasmF ---
 
 testToWasmFI32 = it "Creating an I32Val" $
     property $ \x -> toWasmF I32 (x::Double) `shouldBe` I32Val (round x)
@@ -98,14 +100,23 @@ testToWasmF64 = it "Creating an F64Val" $
 --- parse ---
 
 testParse = it "Should be able to parse a simple add function" $
-    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
+    parseWasm Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
     (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
 
 testParseFolded = it "Should be able to parse a simple folded instruction" $
-    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
+    parseWasm Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
     (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
 
 testParseEmptyBody = it "Should be able to parse a function with an empty body" $
-    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
+    parseWasm Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
     (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [] []))
-    
+
+testParseModuleOneFunc = it "Should be able to parse a module containing one function" $
+    parseWasm wasmModule "(module (func $id (param $a i32) (result i32) get_local $a))" `shouldBe`
+    (WasmModule [Func "$id" [Param "$a" I32] (Block [Result I32] [LocalGet "$a"])])
+
+testParseModuleMultipleFuncs = it "Should be able to parse a module containing multiple functions" $
+    parseWasm wasmModule ("(module (func $id (param $a i32) (result i32) get_local $a) "
+        ++ "(func $id_2 (param $a i32) (result i32) get_local $a call $id))") `shouldBe`
+    (WasmModule [Func "$id" [Param "$a" I32] (Block [Result I32] [LocalGet "$a"]),
+    Func "$id_2" [Param "$a" I32] (Block [Result I32] [LocalGet "$a", Call "$id"])])

@@ -14,7 +14,7 @@ execFunc vs func = case snd $ (unEnv eval) $ initConfig vs (Invoke (Closure Empt
 eval :: MExecutor ()
 eval = do
     cond <- hasInstr ;
-    if cond 
+    if cond
         then do {
             instr <- getInstr ;
             step instr ;
@@ -42,7 +42,7 @@ step (Plain e) = case e of
         Div _ _ ->  do {    a <- pop ;
                             b <- pop ;
                             push (a / b) }
-        Eql _ ->    do {    a <- pop;
+        Eql _ ->    do {    a <- pop ;
                             b <- pop ;
                             push $ boolToWasm (a == b) }
         Const v ->          push v

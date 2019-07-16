@@ -33,7 +33,7 @@ cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pac
 loadFile :: Map.Map String Func -> String -> IO ()
 loadFile map filename = do
     contents <- readFile filename
-    func <- return $ parseFunc Parser.function $ cleanInput contents
+    func <- return $ parseWasm Parser.function $ cleanInput contents
     map' <- return $ Map.insert (getFuncName func) func map
     putStrLn ("Function loaded: " ++ (tail (getFuncName func)))
     wasmRepl map'
@@ -42,7 +42,7 @@ callFunc :: Map.Map String Func -> [String] -> IO ()
 callFunc map (f:xs) = do
     func <- return $ Map.lookup ('$':f) map
     case func of
-        Just x -> do 
+        Just x -> do
             vs <- return $ execFunc (toWasmVals xs) x
             putStrLn ("Result: " ++ show vs)
         Nothing -> putStrLn("Function " ++ f ++ " not loaded")
