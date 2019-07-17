@@ -22,10 +22,6 @@ data Context = Context {
     ops :: [InferType],
     frames :: [Frame],
     locals :: [ValType]
-    -- funcs :: [FuncType]
-    -- globals
-    -- memories
-    -- tables
 } deriving (Show, Eq)
 
 emptyCtx = Context [] [] []
@@ -97,7 +93,6 @@ setUnreachable ctx @ (Context ops' (f:fs) _) = ctx {
     }
 
 -- State and Output function
--- but a similar monad to the executor is used
 newtype M a = Env (Context -> Either String (a, Context))
 unpack (Env f) = f
 
@@ -132,8 +127,8 @@ pushM op = Env $ \ctx -> Right ((), pushOp op ctx)
 
 -- | Pops single value off op stack
 -- 'Fails' if
---      The op stack underflows below the height of the ctrl frame height
---      A known value that differs from expected is popped off 
+--      The op stack height decreases below that of the current control frame
+--      A known value that differs from 'expected' is popped off
 popM :: InferType -> M InferType
 popM expected = Env $ \ctx -> do
     (r, ctx') <- popOp expected ctx
@@ -154,6 +149,8 @@ popCtrlM = Env $ \ctx -> do
     return ((), ctx')
 
 -- | Get frame at i
+-- 'Fails' if:
+--      If i >= length of control frame stack
 peekCtrlM :: Int -> M Frame
 peekCtrlM i = Env $ \ctx -> do
     let frames' = frames ctx
@@ -166,7 +163,7 @@ pushLocal val = Env $ \ctx -> do
     let locals' = locals ctx
     return ((), ctx { locals = val:locals' })
 
--- | Pop single value from locals stack
+-- | Pop single value from locals stack, fails if local stack is empty
 popLocal :: M ValType
 popLocal = Env $ \ctx -> do
     let locals' = locals ctx
@@ -188,11 +185,11 @@ setLocal i value = Env $ \ctx -> do
     return ((), ctx { locals = update locals i value} )     -- ^ maybe change locals to Seq instead of List
     where update xs n val = take n xs ++ [val] ++ drop (n + 1) xs
 
--- | Sets the unreachable flag of current ctrl frame to True
+-- | Sets the unreachable flag of current control frame to True
 setUnreachableM :: M ()
 setUnreachableM = Env $ \ctx -> Right ((), setUnreachable ctx)
 
--- | Typecheck single instruction under context
+-- | Validate single instruction under context
 checkM :: Instr -> M ()
 checkM e = case e of
     Const val -> do
@@ -243,15 +240,18 @@ checkM e = case e of
     Unreachable -> do
         setUnreachableM
 
+-- | Applies checkM on a list of instructions
 checkSeqM :: [Instr] -> M ()
 checkSeqM ops' = mapM_ checkM ops'
     
+-- | Validate label under context
 checkLabel :: [ValType] -> [ValType] -> [Instr] -> M()
 checkLabel labels results ops' = do
     pushCtrlM labels results
     checkSeqM ops'
     popCtrlM
 
+-- | Validates a single function
 checkFunc :: Func -> M ()
 checkFunc (Func _ params results instr) = do
     let params' = map getValue params
@@ -262,6 +262,7 @@ checkFunc (Func _ params results instr) = do
     popCtrlM
     replicateM_ (length params) popLocal
 
+-- | Applies given context on state output function and prints the result
 printRes :: M t -> Context -> IO ()
 printRes m ctx = case unpack m $ ctx of
     Left err -> putStrLn err

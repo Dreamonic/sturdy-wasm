@@ -109,7 +109,7 @@ testValidIf = do
 
 testInvalidIfBranch = do
     let fn = Func "" [] [Result I32] [Const (I32Val 1), If [I32] [Const (I64Val 1)] [Const (I32Val 2)]]
-    it "If statement with an incorrectly function type of a single branch should fail" $
+    it "If statement with an incorrect function type of a single branch should fail" $
         eval (checkFunc fn) `shouldBe` False
 
 testValidLoop = do
@@ -121,8 +121,3 @@ testValidInfiniteLoop = do
     let fn = Func "" [] [Result I32] [Loop [I32] [Const (F32Val 0), Br 0, Const (I32Val 1)]]
     it "Infinite loop with correct result should validate correctly" $
         eval (checkFunc fn) `shouldBe` True
-
--- test = do
---     let fn = 
---     it "" $
---     eval (checkFunc fn) `shouldBe` False
