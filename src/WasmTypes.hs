@@ -2,6 +2,7 @@ module WasmTypes(
   WasmType(..)
   , WasmVal(..)
   , ofType
+  , getType
   , toWasmI
   , toWasmF
   , (<|>)

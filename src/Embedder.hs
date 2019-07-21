@@ -50,7 +50,7 @@ callFunc map (f:xs) = do
     wasmRepl map
 
 getFuncName :: Func -> String
-getFuncName (Func name _ _) = name
+getFuncName (Func name _ _ _) = name
 
 toWasmVals :: [String] -> [WasmVal]
 toWasmVals xs = case xs of
