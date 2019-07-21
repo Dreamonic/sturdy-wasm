@@ -1,5 +1,6 @@
-module Embedder (
-    runWasmRepl
+module Embedder
+  ( runWasmRepl
+  , cleanInput
 ) where
 
 import qualified Data.Map as Map
@@ -42,14 +43,14 @@ callFunc :: Map.Map String Func -> [String] -> IO ()
 callFunc map (f:xs) = do
     func <- return $ Map.lookup ('$':f) map
     case func of
-        Just x -> do 
+        Just x -> do
             vs <- return $ execFunc (toWasmVals xs) x
             putStrLn ("Result: " ++ show vs)
         Nothing -> putStrLn("Function " ++ f ++ " not loaded")
     wasmRepl map
 
 getFuncName :: Func -> String
-getFuncName (Func name _ _) = name
+getFuncName (Func name _ _ _) = name
 
 toWasmVals :: [String] -> [WasmVal]
 toWasmVals xs = case xs of

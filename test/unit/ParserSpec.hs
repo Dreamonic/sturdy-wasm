@@ -9,12 +9,12 @@ import WasmTypes
 -- Test suites --
 
 spec :: Spec
-spec = do 
+spec = do
     tsOfType
     tsToWasmI
     tsToWasmF
     tsParse
-    
+
 -- Linking tests to Test Suites --
 
 tsOfType :: Spec
@@ -25,7 +25,7 @@ tsOfType = describe "ofType" $ do
     testOfTypeF64
     testOfTypeI64NotI32
     testOfTypeF32NotI32
-    
+
 tsToWasmI :: Spec
 tsToWasmI = describe "toWasmI" $ do
     testToWasmI32
@@ -80,7 +80,7 @@ testToWasmIF32 = it "Creating an F32Val" $
 testToWasmIF64 = it "Creating an F64Val" $
     property $ \x -> toWasmI F64 (x::Integer) `shouldBe` F64Val (fromIntegral x)
 
---- toWasmF --- 
+--- toWasmF ---
 
 testToWasmFI32 = it "Creating an I32Val" $
     property $ \x -> toWasmF I32 (x::Double) `shouldBe` I32Val (round x)
@@ -99,13 +99,12 @@ testToWasmF64 = it "Creating an F64Val" $
 
 testParse = it "Should be able to parse a simple add function" $
     parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
-    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Binary I32 Add])
 
 testParseFolded = it "Should be able to parse a simple folded instruction" $
     parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
-    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Numeric (Add I32)]))
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Binary I32 Add])
 
 testParseEmptyBody = it "Should be able to parse a function with an empty body" $
     parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
-    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] (Block [] []))
-    
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [] [])
