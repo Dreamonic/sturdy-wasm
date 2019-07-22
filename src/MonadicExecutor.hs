@@ -125,7 +125,7 @@ funcsFromModule (WasmModule funcs) = funcs
 
 -- |    Get the name of a Func as a String.
 funcName :: Func -> String
-funcName (Func name _ _) = name
+funcName (Func name _ _ _) = name
 
 -- |    Prepare the given Config for execution by inserting an instruction to
 --      call the desired instruction and by filling the stack with the given

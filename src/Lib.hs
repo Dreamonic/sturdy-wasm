@@ -9,10 +9,6 @@ import qualified    Data.Text as T (strip, pack, unpack)
 import              System.IO
 import              Embedder
 
--- |Cleans up WAST
-cleanInput :: String -> String
-cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pack) (lines str)))
-
 -- |Executes interactive mode if no argument is given
 -- if a single argument is given, read file and execute
 parseArgs :: [String] -> IO ()

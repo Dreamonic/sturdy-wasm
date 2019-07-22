@@ -84,7 +84,7 @@ data Config =
 step :: Config -> Config
 step c@(Config frame (Code vs es)) = do
   let (frame', vs', es') = step' (head es) vs c
-  -- traceShow (frame', vs', es') $ 
+  -- traceShow (frame', vs', es') $
   Config frame' (Code vs' (es' ++ tail es))
 
 -- |Intermediate step function
@@ -100,22 +100,24 @@ step' (Plain e) vs (Config frame _) = case (e, vs) of
   (Unreachable, vs) ->
     (frame, vs, [Trapping "unreachable code executed"])
 
+  (Const v, vs)
+    -> (frame, v : vs, [])
+
   {- TODO: factor Numeric (binary, unary etc. out into its own function/file-}
-  (Numeric e', v2 : v1 : vs') ->
+  (Binary typ e', v2 : v1 : vs') ->
     case e' of
-      (Add typ) -> (frame, (((+) <|> (+)) <%> (v1 <:*:> v2)) : vs', [])
-      (Sub typ) -> (frame, (((-) <|> (-)) <%> (v1 <:*:> v2)) : vs', [])
-      (Mul typ) -> (frame, (((*) <|> (*)) <%> (v1 <:*:> v2)) : vs', [])
-      (Div typ Signed) -> (frame, ((div <|> (/)) <%> (v1 <:*:> v2)) : vs', [])
-      (Eql typ) -> (frame, (((==) <=> (==)) <%> (v1 <:*:> v2)) : vs', [])
+      (Add) -> (frame, (((+) <|> (+)) <%> (v1 <:*:> v2)) : vs', [])
+      (Sub) -> (frame, (((-) <|> (-)) <%> (v1 <:*:> v2)) : vs', [])
+      (Mul) -> (frame, (((*) <|> (*)) <%> (v1 <:*:> v2)) : vs', [])
+      (Div Signed) -> (frame, ((div <|> (/)) <%> (v1 <:*:> v2)) : vs', [])
       err     -> error ("unimplemented numeric: " ++ show err)
 
-  (Numeric e', vs) ->
+  (Compare typ e', v2 : v1 : vs') ->
     case e' of
-      (Const v) -> (frame, v : vs, [])
-      err     -> error ("unimplemented numeric: " ++ show err)
+      (Eql) -> (frame, (((==) <=> (==)) <%> (v1 <:*:> v2)) : vs', [])
+      err     -> error ("unimplemented compare: " ++ show err)
 
-  ((Bl resultTypes instructions), vs) -> do
+  ((Block resultTypes instructions), vs) -> do
     let inputLen = length resultTypes
     let code = Code [] (map Plain instructions)   -- ^map instructions in block to admin_instr
     (frame, vs, [Label inputLen [] code])
@@ -125,10 +127,10 @@ step' (Plain e) vs (Config frame _) = case (e, vs) of
     (frame, vs, [Label 0 [e] code])                      -- ^add loop instr e inside inner label
 
   ((If resultTypes trueBl elseBl), (I32Val 0):vs') ->
-    (frame, vs', [Plain (Bl resultTypes elseBl)])
+    (frame, vs', [Plain (Block resultTypes elseBl)])
 
   ((If resultTypes trueBl elseBl), (I32Val _):vs') ->
-    (frame, vs', [Plain (Bl resultTypes trueBl)])
+    (frame, vs', [Plain (Block resultTypes trueBl)])
 
   ((Br x), vs) ->
     (frame, [], [Breaking x vs])
@@ -145,7 +147,7 @@ step' (Plain e) vs (Config frame _) = case (e, vs) of
   (LocalSet e', vs) ->
     case vs of
       v : vs' -> (addBind frame e' v, vs', [])
-  
+
   err -> error $ "unimplemented plain: " ++ show err
 
 -- End of label
@@ -183,7 +185,7 @@ step' (Label n innerInstr code') vs c@(Config frame _) =
   let (Config frame' (Code vs' c')) = step $ c { confCode = code' }        -- ^Step under c with the code inside label
   in (frame', vs, [Label n innerInstr (Code vs' c')])
 
-step' (Invoke (Closure _ (Func name params (Block _ instr)))) vs (Config frame _) =
+step' (Invoke (Closure _ (Func name params _ instr))) vs (Config frame _) =
   let (frame', vs') = addBinds frame params vs
   in (frame, (eval (Config frame' (Code [] (fmap Plain instr)))) ++ vs', [])
 
@@ -205,8 +207,8 @@ execFunc :: [WasmVal] -> Func -> Stack WasmVal
 execFunc vs f = eval (Config (FrameT EmptyInst Map.empty) (Code vs [Invoke (Closure EmptyInst f)]))
 
 execRed :: Func -> Config
-execRed (Func name params block) = 
-  stackToConfig $ eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst (Func name params block))]))
+execRed (Func name params results es) =
+  stackToConfig $ eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst (Func name params results es))]))
 
 stackToConfig :: Stack WasmVal -> Config
 stackToConfig vs = Config (FrameT EmptyInst Map.empty) (Code vs [])
@@ -215,7 +217,7 @@ extractStack :: Config -> Stack WasmVal
 extractStack (Config frame (Code vs es)) = vs
 
 addBinds :: Frame -> [Param] -> Stack WasmVal -> (Frame, Stack WasmVal)
-addBinds (FrameT inst locals) params vs = case (params, vs) of 
+addBinds (FrameT inst locals) params vs = case (params, vs) of
   ([], vs') -> ((FrameT inst locals), vs')
   (Param name _ : ps, v:vs') -> addBinds (FrameT inst (Map.insert name v locals)) ps vs'
   _ -> error "Expected more arguments"
@@ -270,5 +272,3 @@ binOp typ x y opI opF
         (F64Val a, F64Val b) -> F64Val (a `opF` b)
         (_, _) -> E.throw (TypeError "binOp on two different types.")
     | otherwise = E.throw (TypeError "binOp type does not match arg type.")
-
-

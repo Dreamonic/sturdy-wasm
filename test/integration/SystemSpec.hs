@@ -33,7 +33,7 @@ tsFunctions = describe "functions" $ do
 
 
 testStep = it "Test the step function for add" $
-    step (Config (FrameT EmptyInst Map.empty) (Code [I32Val 1, I32Val 2] [Plain (Numeric (Add I32))])) `shouldBe`
+    step (Config (FrameT EmptyInst Map.empty) (Code [I32Val 1, I32Val 2] [Plain (Binary I32 Add)])) `shouldBe`
     (Config (FrameT EmptyInst Map.empty) (Code [I32Val 3] []))
 
 programT = "(func $add \n\
@@ -138,7 +138,7 @@ programT6 = "(func $add (param $x i32) (result i32)\n\
 functionT6 = do
     parseWasm Parser.function programT6
 
-testPrint = it "Print" $ functionT6 `shouldBe` Func "" [] (Block [] [])
+testPrint = it "Print" $ functionT6 `shouldBe` Func "" [] [] []
 
 testT6 = it "Loop test" $
     eval (Config (FrameT EmptyInst Map.empty) (Code [I32Val 0] [Invoke (Closure EmptyInst functionT6)]))

@@ -16,78 +16,84 @@ module MonadicSystemSpec (spec) where
     -- Linking tests to Test Suites --
 
     tsFunctions = describe "functions" $ do
-        -- testT
-        -- testT2
-        -- testT3
-        -- testT4
-        -- testT5
-        testT6
-        -- testT7
-        -- testT8
+        testSimpleFunction
+        testReadLocalVars
+        testSetLocalVars
+        testEquals
+        testEqualsFalse
+        -- testLoop
+        -- testBlock
+        -- testIfElse
         -- testNestedBlocks
 
 
     -- Tests --
 
-    programT = "(func $add \n\
+    programSimpleFunction = "(module\n\
+                \(func $add \n\
                 \(result i32)\n\
                 \i32.const 2\n\
                 \i32.const 3\n\
-                \i32.add)"
+                \i32.add))"
 
-    functionT = parseWasm Parser.function programT
+    moduleSimpleFunction = parseWasm Parser.wasmModule programSimpleFunction
 
-    testT = it "Test simple function" $
-        execFunc [] functionT `shouldBe` [I32Val 5]
+    testSimpleFunction = it "Test simple function" $
+        execFunc "$add" [] moduleSimpleFunction `shouldBe` [I32Val 5]
 
-    programT2 = "(func $add (param $a i32)\n\
+    programReadLocalVars = "(module\n\
+            \(func $add (param $a i32)\n\
             \(result i32)\n\
             \get_local $a\n\
             \i32.const 3\n\
-            \i32.add)"
+            \i32.add))"
 
-    functionT2 = parseWasm Parser.function programT2
+    moduleReadLocalVars = parseWasm Parser.wasmModule programReadLocalVars
 
-    testT2 = it "Test using local variables" $
-        execFunc [I32Val 2] functionT2 `shouldBe` [I32Val 5]
+    testReadLocalVars = it "Test using local variables" $
+        execFunc "$add" [I32Val 2] moduleReadLocalVars `shouldBe` [I32Val 5]
 
-    programT3 = "(func $add (param $a i32)\n\
+    programSetLocalVars = "(module\n\
+        \(func $add (param $a i32)\n\
         \(result i32)\n\
         \i32.const 1\n\
         \set_local $a\n\
         \get_local $a\n\
         \i32.const 3\n\
-        \i32.add)"
+        \i32.add))"
 
-    functionT3 = parseWasm Parser.function programT3
+    moduleSetLocalVars = parseWasm Parser.wasmModule programSetLocalVars
 
-    testT3 = it "Test setting local variables" $
-        execFunc [I32Val 3] functionT3 `shouldBe` [I32Val 4]
+    testSetLocalVars = it "Test setting local variables" $
+        execFunc "$add" [I32Val 3] moduleSetLocalVars `shouldBe` [I32Val 4]
 
-    programT4 = "(func $add\n\
+    programEquals = "(module\n\
+        \(func $eq\n\
         \(result i32)\n\
         \i32.const 1\n\
         \i32.const 1\n\
-        \i32.eq)"
+        \i32.eq))"
 
-    functionT4 = parseWasm Parser.function programT4
+    moduleEquals = parseWasm Parser.wasmModule programEquals
 
-    testT4 = it "Test equals" $
-        execFunc [] functionT4 `shouldBe` [I32Val 1]
+    testEquals = it "Test equals" $
+        execFunc "$eq" [] moduleEquals `shouldBe` [I32Val 1]
 
-    programT5 = "(func $add\n\
+    programEqualsFalse = "(module\n\
+        \(func $neq\n\
         \(result i32)\n\
         \i32.const 1\n\
         \i32.const 3\n\
-        \i32.eq)"
+        \i32.eq))"
 
-    functionT5 = parseWasm Parser.function programT5
+    moduleEqualsFalse = parseWasm Parser.wasmModule programEqualsFalse
 
-    testT5 = it "Test equals" $
-        execFunc [] functionT5 `shouldBe` [I32Val 0]
+    testEqualsFalse = it "Test equals" $
+        execFunc "$neq" [] moduleEqualsFalse `shouldBe` [I32Val 0]
 
 
-    programT7 = "(func $add (param $a i32)\n\
+    programBlock = "(module\n\
+        \(func $foo (param $a i32)\n\
         \(result i32)\n\
         \(block\n\
         \i32.const 2\n\
@@ -98,15 +104,16 @@ module MonadicSystemSpec (spec) where
         \end)\n\
         \get_local $a\n\
         \i32.const 3\n\
-        \i32.add)"
+        \i32.add))"
 
-    functionT7 = parseWasm Parser.function programT7
+    moduleBlock = parseWasm Parser.wasmModule programBlock
 
-    testT7 = it "Test block" $
-        execFunc [I32Val 3] functionT7 `shouldBe` [I32Val 5]
+    testBlock = it "Test block" $
+        execFunc "$foo" [I32Val 3] moduleBlock `shouldBe` [I32Val 5]
 
 
-    programT6 = "(func $add (param $x i32) (result i32)\n\
+    programLoop = "(module\n\
+        \(func $foo (param $x i32) (result i32)\n\
         \(block\n\
         \(loop\n\
             \get_local $x\n\
@@ -121,30 +128,32 @@ module MonadicSystemSpec (spec) where
         \end)\n\
         \end)\n\
         \get_local $x\n\
-        \)"
+        \))"
 
-    functionT6 = do
-        parseWasm Parser.function programT6
+    moduleLoop = do
+        parseWasm Parser.wasmModule programLoop
 
-    testT6 = it "Loop test" $
-        execFunc [I32Val 0] functionT6 `shouldBe` [I32Val 4]
+    testLoop = it "Loop test" $
+        execFunc "$foo" [I32Val 0] moduleLoop `shouldBe` [I32Val 4]
 
-    programT8 = "(func $add (param $x i32) (result i32)\n\
+    programIfElse = "(module\n\
+        \(func $foo (param $x i32) (result i32)\n\
         \i32.const 0\n\
         \if (result i32)\n\
             \i32.const 2\n\
         \else\n\
             \i32.const 3\n\
         \end\n\
-        \)"
+        \))"
 
-    functionT8 = do
-        parseWasm Parser.function programT8
+    moduleIfElse = do
+        parseWasm Parser.wasmModule programIfElse
 
-    testT8 = it "If else test" $
-        execFunc [I32Val 0] functionT8 `shouldBe` [I32Val 3]
+    testIfElse = it "If else test" $
+        execFunc "$foo" [I32Val 0] moduleIfElse `shouldBe` [I32Val 3]
 
-    programNestedBlocks = "(func $add (param $x i32) (result i32)\n\
+    programNestedBlocks = "(module\n\
+        \(func $foo (param $x i32) (result i32)\n\
         \(block\n\
             \i32.const 0\n\
             \set_local $x\n\
@@ -157,10 +166,10 @@ module MonadicSystemSpec (spec) where
             \set_local $x\n\
         \end)\n\
         \get_local $x\n\
-        \)"
+        \))"
 
-    functionNestedBlocks =
-        parseWasm Parser.function programNestedBlocks
+    moduleNestedBlocks =
+        parseWasm Parser.wasmModule programNestedBlocks
 
     testNestedBlocks = it "Test nested blocks" $
-        execFunc [I32Val (-1)] functionNestedBlocks `shouldBe` [I32Val 0]
+        execFunc "$foo" [I32Val (-1)] moduleNestedBlocks `shouldBe` [I32Val 0]

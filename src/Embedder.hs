@@ -1,5 +1,6 @@
-module Embedder (
-    runWasmRepl
+module Embedder
+  ( runWasmRepl
+  , cleanInput
 ) where
 
 import qualified Data.Map as Map
