@@ -28,6 +28,7 @@ library:
   dependencies:
     - containers
     - parsec
+    - lens
 
 executables:
   sturdy-wasm-exe:

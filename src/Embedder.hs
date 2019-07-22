@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as T (strip, pack, unpack)
 import Data.List
 import Parser
-import Executor
+import Eval
 import System.IO
 
 runWasmRepl :: IO ()
