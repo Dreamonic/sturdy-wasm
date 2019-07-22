@@ -6,10 +6,11 @@ import MonadicExecutor
 import Parser
 import WasmTypes
 
-execFunc :: [WasmVal] -> Func -> Stack WasmVal
-execFunc vs func = case snd $ (unEnv eval) $ initConfig vs (Invoke (Closure EmptyInst func)) of
-    Config _ (Code vs _) -> vs
 
+execFunc :: String -> [WasmVal] -> WasmModule -> Stack WasmVal
+execFunc tag vs m = let config = setupFuncCall tag vs (buildConfig m)
+                    in  case snd $ (unEnv eval) config of
+                        Config _ (Code vs _) -> vs
 
 eval :: MExecutor ()
 eval = do
@@ -73,6 +74,9 @@ step (Plain e) = case e of
 
     LocalSet v ->   do {    val <- pop ;
                             setVar v val }
+
+    Call tag ->     do {    cl <- lookupFunc tag ;
+                            putInstr cl }
 
     err ->                  error ("Not implemented Plain: " ++ show err)
 
