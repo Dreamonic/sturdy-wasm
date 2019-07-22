@@ -16,42 +16,42 @@ module MonadicSystemSpec (spec) where
     -- Linking tests to Test Suites --
 
     tsFunctions = describe "functions" $ do
-        testT
-        testT2
-        testT3
-        testT4
-        testT5
-        -- testT6
-        -- testT7
-        -- testT8
+        testSimpleFunction
+        testReadLocalVars
+        testSetLocalVars
+        testEquals
+        testEqualsFalse
+        -- testLoop
+        -- testBlock
+        -- testIfElse
         -- testNestedBlocks
 
 
     -- Tests --
 
-    programT = "(func $add \n\
+    programSimpleFunction = "(func $add \n\
                 \(result i32)\n\
                 \i32.const 2\n\
                 \i32.const 3\n\
                 \i32.add)"
 
-    functionT = parseFunc Parser.function programT
+    functionSimpleFunction = parseFunc Parser.function programSimpleFunction
 
-    testT = it "Test simple function" $
-        execFunc [] functionT `shouldBe` [I32Val 5]
+    testSimpleFunction = it "Test simple function" $
+        execFunc [] functionSimpleFunction `shouldBe` [I32Val 5]
 
-    programT2 = "(func $add (param $a i32)\n\
+    programReadLocalVars = "(func $add (param $a i32)\n\
             \(result i32)\n\
             \get_local $a\n\
             \i32.const 3\n\
             \i32.add)"
 
-    functionT2 = parseFunc Parser.function programT2
+    functionReadLocalVars = parseFunc Parser.function programReadLocalVars
 
-    testT2 = it "Test using local variables" $
-        execFunc [I32Val 2] functionT2 `shouldBe` [I32Val 5]
+    testReadLocalVars = it "Test using local variables" $
+        execFunc [I32Val 2] functionReadLocalVars `shouldBe` [I32Val 5]
 
-    programT3 = "(func $add (param $a i32)\n\
+    programSetLocalVars = "(func $add (param $a i32)\n\
         \(result i32)\n\
         \i32.const 1\n\
         \set_local $a\n\
@@ -59,35 +59,35 @@ module MonadicSystemSpec (spec) where
         \i32.const 3\n\
         \i32.add)"
 
-    functionT3 = parseFunc Parser.function programT3
+    functionSetLocalVars = parseFunc Parser.function programSetLocalVars
 
-    testT3 = it "Test setting local variables" $
-        execFunc [I32Val 3] functionT3 `shouldBe` [I32Val 4]
+    testSetLocalVars = it "Test setting local variables" $
+        execFunc [I32Val 3] functionSetLocalVars `shouldBe` [I32Val 4]
 
-    programT4 = "(func $add\n\
+    programEquals = "(func $add\n\
         \(result i32)\n\
         \i32.const 1\n\
         \i32.const 1\n\
         \i32.eq)"
 
-    functionT4 = parseFunc Parser.function programT4
+    functionEquals = parseFunc Parser.function programEquals
 
-    testT4 = it "Test equals" $
-        execFunc [] functionT4 `shouldBe` [I32Val 1]
+    testEquals = it "Test equals" $
+        execFunc [] functionEquals `shouldBe` [I32Val 1]
 
-    programT5 = "(func $add\n\
+    programEqualsFalse = "(func $add\n\
         \(result i32)\n\
         \i32.const 1\n\
         \i32.const 3\n\
         \i32.eq)"
 
-    functionT5 = parseFunc Parser.function programT5
+    functionEqualsFalse = parseFunc Parser.function programEqualsFalse
 
-    testT5 = it "Test equals" $
-        execFunc [] functionT5 `shouldBe` [I32Val 0]
+    testEqualsFalse = it "Test equals" $
+        execFunc [] functionEqualsFalse `shouldBe` [I32Val 0]
 
 
-    programT7 = "(func $add (param $a i32)\n\
+    programBlock = "(func $add (param $a i32)\n\
         \(result i32)\n\
         \(block\n\
         \i32.const 2\n\
@@ -100,13 +100,13 @@ module MonadicSystemSpec (spec) where
         \i32.const 3\n\
         \i32.add)"
 
-    functionT7 = parseFunc Parser.function programT7
+    functionBlock = parseFunc Parser.function programBlock
 
-    testT7 = it "Test block" $
-        execFunc [I32Val 3] functionT7 `shouldBe` [I32Val 5]
+    testBlock = it "Test block" $
+        execFunc [I32Val 3] functionBlock `shouldBe` [I32Val 5]
 
 
-    programT6 = "(func $add (param $x i32) (result i32)\n\
+    programLoop = "(func $add (param $x i32) (result i32)\n\
         \(block\n\
         \(loop\n\
             \get_local $x\n\
@@ -123,13 +123,13 @@ module MonadicSystemSpec (spec) where
         \get_local $x\n\
         \)"
 
-    functionT6 = do
-        parseFunc Parser.function programT6
+    functionLoop = do
+        parseFunc Parser.function programLoop
 
-    testT6 = it "Loop test" $
-        execFunc [I32Val 0] functionT6 `shouldBe` [I32Val 4]
+    testLoop = it "Loop test" $
+        execFunc [I32Val 0] functionLoop `shouldBe` [I32Val 4]
 
-    programT8 = "(func $add (param $x i32) (result i32)\n\
+    programIfElse = "(func $add (param $x i32) (result i32)\n\
         \i32.const 0\n\
         \if (result i32)\n\
             \i32.const 2\n\
@@ -138,11 +138,11 @@ module MonadicSystemSpec (spec) where
         \end\n\
         \)"
 
-    functionT8 = do
-        parseFunc Parser.function programT8
+    functionIfElse = do
+        parseFunc Parser.function programIfElse
 
-    testT8 = it "If else test" $
-        execFunc [I32Val 0] functionT8 `shouldBe` [I32Val 3]
+    testIfElse = it "If else test" $
+        execFunc [I32Val 0] functionIfElse `shouldBe` [I32Val 3]
 
     programNestedBlocks = "(func $add (param $x i32) (result i32)\n\
         \(block\n\
