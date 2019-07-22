@@ -75,8 +75,8 @@ step (Plain e) = case e of
     LocalSet v ->   do {    val <- pop ;
                             setVar v val }
 
-    Call tag ->     do {    cl <- lookupFunc tag ;
-                            putInstr cl }
+    Call tag ->     do {    f <- lookupFunc tag ;
+                            putInstr (Invoke (Closure EmptyInst f) }
 
     err ->                  error ("Not implemented Plain: " ++ show err)
 

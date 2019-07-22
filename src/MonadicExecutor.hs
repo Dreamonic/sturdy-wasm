@@ -113,16 +113,23 @@ code es = Code [] (fmap Plain es)
 buildConfig :: WasmModule -> Config
 buildConfig m = Config (FrameT EmptyInst Map.empty (funcMapFromModule m)) (Code [] [])
 
+-- |    Retrieve a Map from a WasmModule from which Funcs can be fetched by
+--      using the String of their name as a key.
 funcMapFromModule :: WasmModule -> FuncMap
 funcMapFromModule m = let funcs = funcsFromModule m
                       in  Map.fromList (zip (map funcName funcs) funcs)
 
+-- |    Retrieve the Funcs stored in a WasmModule.
 funcsFromModule :: WasmModule -> [Func]
 funcsFromModule (WasmModule funcs) = funcs
 
+-- |    Get the name of a Func as a String.
 funcName :: Func -> String
 funcName (Func name _ _) = name
 
+-- |    Prepare the given Config for execution by inserting an instruction to
+--      call the desired instruction and by filling the stack with the given
+--      function arguments.
 setupFuncCall :: String -> Stack WasmVal -> Config -> Config
 setupFuncCall tag vs conf = set (confCode) (Code vs [Plain (Call tag)]) conf
 
@@ -177,12 +184,15 @@ hasInstr = Env (\config -> case view (confCode . instr) config of
     [] -> (False, config)
     _ -> (True, config))
 
+-- |    Get the full value stack from the Config.
 retrieveStack :: MExecutor (Stack WasmVal)
 retrieveStack = Env(\config -> (view (confCode . stack) config, config))
 
-lookupFunc :: String -> MExecutor AdminInstr
+-- |    Lookup the func with the specified tag from the functions loaded in
+--      the Config.
+lookupFunc :: String -> MExecutor Func
 lookupFunc tag = Env (\config -> let f = findFunc tag (view (confFrame . funcs) config)
-                                 in  (Invoke (Closure EmptyInst f), config))
+                                 in  (f, config))
 
 -- |    Find a local variable from local environment.
 findLocal :: String -> Locals -> WasmVal
@@ -190,6 +200,7 @@ findLocal id locals = case Map.lookup id locals of
     Just v -> v
     Nothing -> error "Value not found"
 
+-- |    Find a Func from a given FuncMap. Throw a run-time error if not found.
 findFunc :: String -> FuncMap -> Func
 findFunc tag funcMap = case Map.lookup tag funcMap of
     Just f -> f
