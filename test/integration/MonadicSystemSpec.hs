@@ -4,6 +4,7 @@ module MonadicSystemSpec (spec) where
     import Test.Hspec
     import Lexer
     import Parser
+    import WasmTypes
     import Eval
     import qualified Data.Map as Map
 
@@ -21,6 +22,8 @@ module MonadicSystemSpec (spec) where
         testSetLocalVars
         testEquals
         testEqualsFalse
+        testFunctionCalls
+        -- testEvenOdd
         -- testLoop
         -- testBlock
         -- testIfElse
@@ -173,3 +176,53 @@ module MonadicSystemSpec (spec) where
 
     testNestedBlocks = it "Test nested blocks" $
         execFunc "$foo" [I32Val (-1)] moduleNestedBlocks `shouldBe` [I32Val 0]
+
+    programFunctionCalls = "(module\n\
+        \(func $quadruple (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \call $double\n\
+        \call $double)\n\
+        \(func $double (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \i32.const 2\n\
+        \i32.mul))"
+
+    moduleFunctionCalls =
+        parseWasm Parser.wasmModule programFunctionCalls
+
+    testFunctionCalls = it "Test function calls" $
+        property $ \x -> execFunc "$quadruple" [I32Val (x::Integer)]
+            moduleFunctionCalls `shouldBe` [(I32Val (4 * (x::Integer)))]
+
+    programEvenOdd = "(module\n\
+        \(func $even (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \i32.const 0\n\
+        \i32.eq\n\
+        \if (result i32)\n\
+            \i32.const 1\n\
+        \else\n\
+            \get_local $x\n\
+            \i32.const 1\n\
+            \i32.sub\n\
+            \call $odd\n\
+        \end)\n\
+        \(func $odd (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \i32.const 0\n\
+        \i32.eq\n\
+        \if (result i32)\n\
+            \i32.const 0\n\
+        \else\n\
+            \get_local $x\n\
+            \i32.const 1\n\
+            \i32.sub\n\
+            \call $even\n\
+        \end))"
+
+    moduleEvenOdd =
+        parseWasm Parser.wasmModule programEvenOdd
+
+    testEvenOdd = it "Test complex function calls" $
+        property $ \x -> execFunc "$even" [I32Val (x::Integer)] moduleEvenOdd
+            `shouldBe` [(boolToWasm (even (x::Integer)))]
