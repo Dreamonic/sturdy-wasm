@@ -21,13 +21,13 @@ interactive :: IO ()
 interactive = do
     putStrLn "Character: "
     input <- getLine
-    print $ parseFunc Parser.function input
+    print $ parseWasm Parser.function input
 
 -- |Reads a file and executes
 execute :: String -> IO ()
 execute filename = do
     contents <- readFile filename
-    print $ parseFunc Parser.function $ cleanInput contents -- TODO: clean up input string
+    print $ parseWasm Parser.function $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
 someFunc = runWasmRepl

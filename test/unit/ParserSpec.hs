@@ -45,6 +45,8 @@ tsParse = describe "parse" $ do
     testParse
     testParseFolded
     testParseEmptyBody
+    testParseModuleOneFunc
+    testParseModuleMultipleFuncs
 
 -- Tests --
 
@@ -98,13 +100,23 @@ testToWasmF64 = it "Creating an F64Val" $
 --- parse ---
 
 testParse = it "Should be able to parse a simple add function" $
-    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
-    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Binary I32 Add])
+    parseWasm Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [Result I32] [LocalGet "$lhs",LocalGet "$rhs", Binary I32 Add])
 
 testParseFolded = it "Should be able to parse a simple folded instruction" $
-    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
-    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [Result I32] [LocalGet "$lhs",LocalGet "$rhs",Binary I32 Add])
+    parseWasm Parser.function "(func $add (param $lhs i32) (param $rhs i32) (result i32)(i32.add(get_local $lhs)(get_local $rhs)))" `shouldBe`
+    (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [Result I32] [LocalGet "$lhs",LocalGet "$rhs", Binary I32 Add])
 
 testParseEmptyBody = it "Should be able to parse a function with an empty body" $
-    parseFunc Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
+    parseWasm Parser.function "(func $add (param $lhs i32) (param $rhs i32))" `shouldBe`
     (Func "$add" [Param "$lhs" I32,Param "$rhs" I32] [] [])
+
+testParseModuleOneFunc = it "Should be able to parse a module containing one function" $
+    parseWasm wasmModule "(module (func $id (param $a i32) (result i32) get_local $a))" `shouldBe`
+    (WasmModule [Func "$id" [Param "$a" I32] [Result I32] [LocalGet "$a"]])
+
+testParseModuleMultipleFuncs = it "Should be able to parse a module containing multiple functions" $
+    parseWasm wasmModule ("(module (func $id (param $a i32) (result i32) get_local $a) "
+        ++ "(func $id_2 (param $a i32) (result i32) get_local $a call $id))") `shouldBe`
+    (WasmModule [Func "$id" [Param "$a" I32] [Result I32] [LocalGet "$a"],
+    Func "$id_2" [Param "$a" I32] [Result I32] [LocalGet "$a", Call "$id"]])
