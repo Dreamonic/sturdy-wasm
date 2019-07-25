@@ -13,7 +13,8 @@ module Parser(
   , SignedNess(..)
   , parse
   , function
-  , parseFunc
+  , parseWasm
+  , wasmModule
 ) where
 
 import Text.ParserCombinators.Parsec
@@ -92,6 +93,7 @@ parseInstruction
   <|> parseIf
   <|> parseGetLocal
   <|> parseSetLocal
+  <|> parseCall
   <|> parseConst
   <|> parseBinaryInstr
   <|> parseUnaryInstr
@@ -154,6 +156,11 @@ parseConst = try $ do
         F64 -> Parser.Const . F64Val <$> float
         I32 -> Parser.Const . I32Val <$> integer
         I64 -> Parser.Const . I64Val <$> integer
+
+parseCall :: Parser Instr
+parseCall = do
+    keyword "call"
+    return Call <*> identifier
 
 parseBinaryInstr :: Parser Instr
 parseBinaryInstr = try $ do
@@ -243,19 +250,15 @@ function = parens $ do
 
 
 -- TODO: currently only handles function definitions, not exports etc
-parseModule :: Parser WasmModule
-parseModule = parens $ do
+wasmModule :: Parser WasmModule
+wasmModule = parens $ do
   keyword "module"
   functions <- many function
   return (WasmModule functions)
 
 watfunc = "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)"
 
-parseFunc :: Parser a -> String -> a
-parseFunc func str = case parse func "wasm lang" str of
+parseWasm :: Parser a -> String -> a
+parseWasm func str = case parse func "wasm lang" str of
   Left err  -> error $ "No match: " ++ show err
   Right val -> val
-
-parseFuncStr2show str = case parse function "wasm lang" str of
-  Left err  -> "No match: " ++ show err
-  Right val -> show val

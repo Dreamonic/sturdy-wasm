@@ -114,7 +114,7 @@ testValidIf = do
 
 testInvalidIfBranch = do
     let fn = Func "" [] [Result I32] [Const (I32Val 1), If [I32] [Const (I64Val 1)] [Const (I32Val 2)]]
-    it "If statement with an incorrectly function type of a single branch should fail" $
+    it "If statement with an incorrect function type of a single branch should fail" $
         eval (checkFunc fn) `shouldBe` False
 
 testValidLoop = do
@@ -142,7 +142,3 @@ testInvalodSetLocal = do
     it "Setting incorrect local type should fail" $
         eval (checkFunc fn) `shouldBe` False
 
--- test = do
---     let fn = 
---     it "" $
---     eval (checkFunc fn) `shouldBe` False

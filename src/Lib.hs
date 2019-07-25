@@ -9,10 +9,6 @@ import qualified    Data.Text as T (strip, pack, unpack)
 import              System.IO
 import              Embedder
 
--- |Cleans up WAST
-cleanInput :: String -> String
-cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pack) (lines str)))
-
 -- |Executes interactive mode if no argument is given
 -- if a single argument is given, read file and execute
 parseArgs :: [String] -> IO ()
@@ -22,16 +18,16 @@ parseArgs args      = putStrLn $ "Invalid Options: " ++ intercalate " " args
 
 -- |Reads WAST user input and executes it
 interactive :: IO ()
-interactive = do 
+interactive = do
     putStrLn "Character: "
     input <- getLine
-    print $ parseFunc Parser.function input
+    print $ parseWasm Parser.function input
 
--- |Reads a file and executes 
+-- |Reads a file and executes
 execute :: String -> IO ()
 execute filename = do
     contents <- readFile filename
-    print $ parseFunc Parser.function $ cleanInput contents -- TODO: clean up input string
+    print $ parseWasm Parser.function $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
 someFunc = runWasmRepl
