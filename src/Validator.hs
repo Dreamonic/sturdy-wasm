@@ -136,6 +136,10 @@ popM expected = Env $ \ctx -> do
     (r, ctx') <- popOp expected ctx
     return (r, ctx')
 
+-- | Checks if the current value matches the expected value 
+peekM :: InferType -> M ()
+peekM expected = popM expected >> pushM expected
+
 -- | Push control frame with given type signature
 pushCtrlM :: [ValType] -> [ValType] -> M ()
 pushCtrlM labels results = Env $ \ctx -> Right ((), pushCtrl labels results ctx)
@@ -244,9 +248,8 @@ checkM e = case e of
 
     LocalTee name -> do
         t <- getLocal <=< getLocalIndex $ name
-        popM $ Actual t
+        peekM $ Actual t
         pushM $ Actual t
-        -- ^ TODO make peek function to avoid duplication
 
     Loop t ops' -> do
         checkLabel [] t ops'
