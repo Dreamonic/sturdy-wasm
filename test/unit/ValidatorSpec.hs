@@ -143,7 +143,7 @@ testSetLocal = do
         eval (checkFunc fn) `shouldBe` True
 
 testLocalTee = do
-    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I32Val 2), LocalTee "foo", Binary I32 Add]
+    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I32Val 2), LocalTee "foo"]
     it "Local tee should validate correctly" $
         eval (checkFunc fn) `shouldBe` True
 

@@ -249,7 +249,6 @@ checkM e = case e of
     LocalTee name -> do
         t <- getLocal <=< getLocalIndex $ name
         peekM $ Actual t
-        pushM $ Actual t
 
     Loop t ops' -> do
         checkLabel [] t ops'
