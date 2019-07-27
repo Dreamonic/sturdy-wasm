@@ -3,6 +3,7 @@ module MonadicExecutor(
     MExecutor(..)
     , ModInst(..)
     , Locals(..)
+    , FuncMap(..)
     , Frame(..)
     , Stack(..)
     , Code(..)
@@ -11,7 +12,8 @@ module MonadicExecutor(
     , Config(..)
     , label
     , code
-    , initConfig
+    , buildConfig
+    , setupFuncCall
     , unEnv
     , push
     , pop
@@ -24,6 +26,7 @@ module MonadicExecutor(
     , retrieveStack
     , getStack
     , throwError
+    , lookupFunc
 ) where
 
 import qualified Data.Map as Map
@@ -34,11 +37,12 @@ import Control.Lens
 data ModInst =
     EmptyInst
     deriving (Show, Eq)
-  
+
 type Locals = Map.Map String WasmVal
+type FuncMap = Map.Map String Func
 
 data Frame =
-    FrameT {_modInst :: ModInst, _locals :: Locals}
+    FrameT {_modInst :: ModInst, _locals :: Locals, _funcs :: FuncMap}
     deriving (Show, Eq)
 
 type Stack a = [a]
@@ -105,17 +109,36 @@ instance Monad MExecutor where
                                 (Left msg, n1) -> (Left msg, n1)
                                 (Right a1, n1) -> unEnv (f a1) n1)
 
-code :: [Instr] -> Code
-code es = Code [] (fmap Plain es)
-
--- |    Initialize the Config to Config with no locals, 
---      an empty value stack, and an empty execution stack.
-initConfig :: Stack WasmVal -> AdminInstr -> Config
-initConfig vs e = Config (FrameT EmptyInst Map.empty) (Code vs [e])
-
 -- |    Unencapsulate the state function.
 unEnv :: MExecutor a -> (Config -> (Either String a, Config))
 unEnv (Env e) = e
+
+code :: [Instr] -> Code
+code es = Code [] (fmap Plain es)
+
+-- |    Construct a Config using the given WasmModule with
+buildConfig :: WasmModule -> Config
+buildConfig m = Config (FrameT EmptyInst Map.empty (funcMapFromModule m)) (Code [] [])
+
+-- |    Retrieve a Map from a WasmModule from which Funcs can be fetched by
+--      using the String of their name as a key.
+funcMapFromModule :: WasmModule -> FuncMap
+funcMapFromModule m = let funcs = funcsFromModule m
+                      in  Map.fromList (zip (map funcName funcs) funcs)
+
+-- |    Retrieve the Funcs stored in a WasmModule.
+funcsFromModule :: WasmModule -> [Func]
+funcsFromModule (WasmModule funcs) = funcs
+
+-- |    Get the name of a Func as a String.
+funcName :: Func -> String
+funcName (Func name _ _ _) = name
+
+-- |    Prepare the given Config for execution by inserting an instruction to
+--      call the desired instruction and by filling the stack with the given
+--      function arguments.
+setupFuncCall :: String -> Stack WasmVal -> Config -> Config
+setupFuncCall tag vs conf = set (confCode) (Code vs [Plain (Call tag)]) conf
 
 -- |    Get the stack from a Config.
 getStack :: Config -> Stack WasmVal
@@ -123,7 +146,7 @@ getStack = view (confCode . stack)
 
 -- |    Set the stack of a Config.
 setStack :: Stack WasmVal -> Config -> Config
-setStack vs conf= set (confCode . stack) vs conf
+setStack vs conf = set (confCode . stack) vs conf
 
 -- |    Push a single WasmVal to the top of the stack of a Config.
 pushToStack :: WasmVal -> Config-> Config
@@ -149,7 +172,7 @@ pop :: MExecutor WasmVal
 pop = Env (\config -> popFromStack config)
 
 -- |    Put a value into the local environment
-setVar :: String -> WasmVal -> MExecutor () 
+setVar :: String -> WasmVal -> MExecutor ()
 setVar id v = Env (\config -> (Right (), over (confFrame . locals) (Map.insert id v) config))
 
 -- |    Get a value from the local environment specified by the variable.
@@ -170,18 +193,31 @@ getInstr = Env (\config -> popFromInstr config)
 
 hasInstr :: MExecutor Bool
 hasInstr = Env (\config -> case view (confCode . instr) config of
-    [] -> (Right False, config) 
-    _ -> (Right True, config))
+    [] -> (Right False, config)
+    _ ->  (Right True, config))
 
+-- |    Get the full value stack from the Config.
 retrieveStack :: MExecutor (Stack WasmVal)
 retrieveStack = Env(\config -> (Right (view (confCode . stack) config), config))
+
+-- |    Lookup the func with the specified tag from the functions loaded in
+--      the Config.
+lookupFunc :: String -> MExecutor Func
+lookupFunc tag = Env (\config -> let f = findFunc tag (view (confFrame . funcs) config)
+                                 in  (f, config))
 
 -- |    Find a local variable from local environment.
 findLocal :: String -> Locals -> Either String WasmVal
 findLocal id locals = case Map.lookup id locals of
-  Just v -> Right v
-  Nothing -> Left ("The id: '" ++ id ++ "' was not bound")
+    Just v -> Right v
+    Nothing -> Left ("The id: '" ++ id ++ "' was not bound")
 
 
 throwError :: String -> MExecutor ()
 throwError err = Env (\config -> (Left err, config))
+
+-- |    Find a Func from a given FuncMap. Throw a run-time error if not found.
+findFunc :: String -> FuncMap -> Either String Func
+findFunc tag funcMap = case Map.lookup tag funcMap of
+    Just f -> Right f
+    Nothing -> Left ("Called function '" ++ tag ++ "' not present in module")

@@ -1,5 +1,6 @@
-module Embedder (
-    runWasmRepl
+module Embedder
+  ( runWasmRepl
+  , cleanInput
 ) where
 
 import qualified Data.Map as Map
@@ -8,50 +9,43 @@ import Data.List
 import Parser
 import Eval
 import System.IO
+import MonadicExecutor
 
 runWasmRepl :: IO ()
-runWasmRepl = wasmRepl Map.empty
+runWasmRepl = wasmRepl (WasmModule [])
 
-wasmRepl :: Map.Map String Func -> IO ()
-wasmRepl map = do
+wasmRepl :: WasmModule -> IO ()
+wasmRepl module' = do
     putStr $ "$> "
     hFlush stdout
     input <- getLine
     argv <- return $ words input
     putStrLn ("Input: " ++ show argv)
-    processRepl map argv
+    processRepl module' argv
 
-processRepl :: Map.Map String Func -> [String] -> IO ()
-processRepl map argv = case argv of
+processRepl :: WasmModule -> [String] -> IO ()
+processRepl module' argv = case argv of
     "exit":_ -> putStrLn "Goodbye!"
-    ":l":xs -> loadFile map $ head xs
-    vs -> callFunc map vs
+    ":l":xs ->  loadFile $ head xs
+    vs ->       callFunc module' vs
 
 cleanInput :: String -> String
 cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pack) (lines str)))
 
-loadFile :: Map.Map String Func -> String -> IO ()
-loadFile map filename = do
+loadFile :: String -> IO ()
+loadFile filename = do
     contents <- readFile filename
-    func <- return $ parseFunc Parser.function $ cleanInput contents
-    map' <- return $ Map.insert (getFuncName func) func map
-    putStrLn ("Function loaded: " ++ (tail (getFuncName func)))
-    wasmRepl map'
+    module' <- return $ parseWasm wasmModule $ cleanInput contents
+    putStrLn ("Module loaded: " ++ (show module'))
+    wasmRepl module'
 
-callFunc :: Map.Map String Func -> [String] -> IO ()
-callFunc map (f:xs) = do
-    func <- return $ Map.lookup ('$':f) map
-    case func of
-        Just x -> do {
-            let vs = execFunc (toWasmVals xs) x
-            in case vs of
-                Left msg -> putStrLn ("Error: " ++ msg)
-                _ -> putStrLn ("Result: " ++ show vs) }
-        Nothing -> putStrLn("Function " ++ f ++ " not loaded")
-    wasmRepl map
-
-getFuncName :: Func -> String
-getFuncName (Func name _ _) = name
+callFunc :: WasmModule -> [String] -> IO ()
+callFunc module' (f:xs) = do
+    res <- return $ execFunc ('$':f) (toWasmVals xs) module'
+    case res of
+        Right vs -> putStrLn ("Result: " ++ show vs)
+        Left msg -> putStrLn ("Error: " ++ msg)
+    wasmRepl module'
 
 toWasmVals :: [String] -> [WasmVal]
 toWasmVals xs = case xs of

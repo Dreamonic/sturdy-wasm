@@ -4,90 +4,101 @@ module MonadicSystemSpec (spec) where
     import Test.Hspec
     import Lexer
     import Parser
+    import WasmTypes
     import Eval
     import qualified Data.Map as Map
-    
+
     -- Test suites --
     spec :: Spec
     spec = do
         tsFunctions
-    
-    
+
+
     -- Linking tests to Test Suites --
-    
+
     tsFunctions = describe "functions" $ do
-        -- testT
-        -- testT2
-        -- testT3
-        -- testT4
-        -- testT5
-        testT6
-        -- testT7
-        -- testT8
+        testSimpleFunction
+        testReadLocalVars
+        testSetLocalVars
+        testEquals
+        testEqualsFalse
+        testFunctionCalls
+        -- testEvenOdd
+        -- testLoop
+        -- testBlock
+        -- testIfElse
         -- testNestedBlocks
-    
-    
-    -- Tests --  
-    
-    programT = "(func $add \n\
+
+
+    -- Tests --
+
+    programSimpleFunction = "(module\n\
+                \(func $add \n\
                 \(result i32)\n\
                 \i32.const 2\n\
                 \i32.const 3\n\
-                \i32.add)"
-    
-    functionT = parseFunc Parser.function programT
-    
-    testT = it "Test simple function" $
-        execFunc [] functionT `shouldBe` [I32Val 5]
-    
-    programT2 = "(func $add (param $a i32)\n\
+                \i32.add))"
+
+    moduleSimpleFunction = parseWasm Parser.wasmModule programSimpleFunction
+
+    testSimpleFunction = it "Test simple function" $
+        execFunc "$add" [] moduleSimpleFunction `shouldBe` (Right [I32Val 5])
+
+    programReadLocalVars = "(module\n\
+            \(func $add (param $a i32)\n\
             \(result i32)\n\
             \get_local $a\n\
             \i32.const 3\n\
-            \i32.add)"
-    
-    functionT2 = parseFunc Parser.function programT2
-    
-    testT2 = it "Test using local variables" $
-        execFunc [I32Val 2] functionT2 `shouldBe` [I32Val 5]
-    
-    programT3 = "(func $add (param $a i32)\n\
+            \i32.add))"
+
+    moduleReadLocalVars = parseWasm Parser.wasmModule programReadLocalVars
+
+    testReadLocalVars = it "Test using local variables" $
+        execFunc "$add" [I32Val 2] moduleReadLocalVars `shouldBe` (Right
+            [I32Val 5])
+
+    programSetLocalVars = "(module\n\
+        \(func $add (param $a i32)\n\
         \(result i32)\n\
         \i32.const 1\n\
         \set_local $a\n\
         \get_local $a\n\
         \i32.const 3\n\
-        \i32.add)"
-    
-    functionT3 = parseFunc Parser.function programT3
-    
-    testT3 = it "Test setting local variables" $
-        execFunc [I32Val 3] functionT3 `shouldBe` [I32Val 4]
-    
-    programT4 = "(func $add\n\
+        \i32.add))"
+
+    moduleSetLocalVars = parseWasm Parser.wasmModule programSetLocalVars
+
+    testSetLocalVars = it "Test setting local variables" $
+        execFunc "$add" [I32Val 3] moduleSetLocalVars `shouldBe` (Right
+            [I32Val 4])
+
+    programEquals = "(module\n\
+        \(func $eq\n\
         \(result i32)\n\
         \i32.const 1\n\
         \i32.const 1\n\
-        \i32.eq)"
-    
-    functionT4 = parseFunc Parser.function programT4
-    
-    testT4 = it "Test equals" $
-        execFunc [] functionT4 `shouldBe` [I32Val 1]
-    
-    programT5 = "(func $add\n\
+        \i32.eq))"
+
+    moduleEquals = parseWasm Parser.wasmModule programEquals
+
+    testEquals = it "Test equals" $
+        execFunc "$eq" [] moduleEquals `shouldBe` (Right [I32Val 1])
+
+    programEqualsFalse = "(module\n\
+        \(func $neq\n\
         \(result i32)\n\
         \i32.const 1\n\
         \i32.const 3\n\
-        \i32.eq)"
-    
-    functionT5 = parseFunc Parser.function programT5
-    
-    testT5 = it "Test equals" $
-        execFunc [] functionT5 `shouldBe` [I32Val 0]
-    
-    
-    programT7 = "(func $add (param $a i32)\n\
+        \i32.eq))"
+
+    moduleEqualsFalse = parseWasm Parser.wasmModule programEqualsFalse
+
+    testEqualsFalse = it "Test equals" $
+        execFunc "$neq" [] moduleEqualsFalse `shouldBe` (Right [I32Val 0])
+
+
+    programBlock = "(module\n\
+        \(func $foo (param $a i32)\n\
         \(result i32)\n\
         \(block\n\
         \i32.const 2\n\
@@ -98,15 +109,16 @@ module MonadicSystemSpec (spec) where
         \end)\n\
         \get_local $a\n\
         \i32.const 3\n\
-        \i32.add)"
-    
-    functionT7 = parseFunc Parser.function programT7
-    
-    testT7 = it "Test block" $
-        execFunc [I32Val 3] functionT7 `shouldBe` [I32Val 5]
-    
-    
-    programT6 = "(func $add (param $x i32) (result i32)\n\
+        \i32.add))"
+
+    moduleBlock = parseWasm Parser.wasmModule programBlock
+
+    testBlock = it "Test block" $
+        execFunc "$foo" [I32Val 3] moduleBlock `shouldBe` (Right [I32Val 5])
+
+
+    programLoop = "(module\n\
+        \(func $foo (param $x i32) (result i32)\n\
         \(block\n\
         \(loop\n\
             \get_local $x\n\
@@ -121,30 +133,32 @@ module MonadicSystemSpec (spec) where
         \end)\n\
         \end)\n\
         \get_local $x\n\
-        \)"
-    
-    functionT6 = do 
-        parseFunc Parser.function programT6
-    
-    testT6 = it "Loop test" $
-        execFunc [I32Val 0] functionT6 `shouldBe` [I32Val 4]
-    
-    programT8 = "(func $add (param $x i32) (result i32)\n\
+        \))"
+
+    moduleLoop = do
+        parseWasm Parser.wasmModule programLoop
+
+    testLoop = it "Loop test" $
+        execFunc "$foo" [I32Val 0] moduleLoop `shouldBe` (Right [I32Val 4])
+
+    programIfElse = "(module\n\
+        \(func $foo (param $x i32) (result i32)\n\
         \i32.const 0\n\
         \if (result i32)\n\
             \i32.const 2\n\
         \else\n\
             \i32.const 3\n\
         \end\n\
-        \)"
-    
-    functionT8 = do 
-        parseFunc Parser.function programT8
-    
-    testT8 = it "If else test" $
-        execFunc [I32Val 0] functionT8 `shouldBe` [I32Val 3]
-    
-    programNestedBlocks = "(func $add (param $x i32) (result i32)\n\
+        \))"
+
+    moduleIfElse = do
+        parseWasm Parser.wasmModule programIfElse
+
+    testIfElse = it "If else test" $
+        execFunc "$foo" [I32Val 0] moduleIfElse `shouldBe` (Right [I32Val 3])
+
+    programNestedBlocks = "(module\n\
+        \(func $foo (param $x i32) (result i32)\n\
         \(block\n\
             \i32.const 0\n\
             \set_local $x\n\
@@ -157,10 +171,60 @@ module MonadicSystemSpec (spec) where
             \set_local $x\n\
         \end)\n\
         \get_local $x\n\
-        \)"
-    
-    functionNestedBlocks = 
-        parseFunc Parser.function programNestedBlocks
-    
+        \))"
+
+    moduleNestedBlocks =
+        parseWasm Parser.wasmModule programNestedBlocks
+
     testNestedBlocks = it "Test nested blocks" $
-        execFunc [I32Val (-1)] functionNestedBlocks `shouldBe` [I32Val 0]
+        execFunc "$foo" [I32Val (-1)] moduleNestedBlocks `shouldBe` (Right [I32Val 0])
+
+    programFunctionCalls = "(module\n\
+        \(func $quadruple (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \call $double\n\
+        \call $double)\n\
+        \(func $double (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \i32.const 2\n\
+        \i32.mul))"
+
+    moduleFunctionCalls =
+        parseWasm Parser.wasmModule programFunctionCalls
+
+    testFunctionCalls = it "Test function calls" $
+        property $ \x -> execFunc "$quadruple" [I32Val (x::Integer)]
+            moduleFunctionCalls `shouldBe` (Right [I32Val (4 * (x::Integer))])
+
+    programEvenOdd = "(module\n\
+        \(func $even (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \i32.const 0\n\
+        \i32.eq\n\
+        \if (result i32)\n\
+            \i32.const 1\n\
+        \else\n\
+            \get_local $x\n\
+            \i32.const 1\n\
+            \i32.sub\n\
+            \call $odd\n\
+        \end)\n\
+        \(func $odd (param $x i32) (result i32)\n\
+        \get_local $x\n\
+        \i32.const 0\n\
+        \i32.eq\n\
+        \if (result i32)\n\
+            \i32.const 0\n\
+        \else\n\
+            \get_local $x\n\
+            \i32.const 1\n\
+            \i32.sub\n\
+            \call $even\n\
+        \end))"
+
+    moduleEvenOdd =
+        parseWasm Parser.wasmModule programEvenOdd
+
+    testEvenOdd = it "Test complex function calls" $
+        property $ \x -> execFunc "$even" [I32Val (x::Integer)] moduleEvenOdd
+            `shouldBe` (Right [(boolToWasm (even (x::Integer)))])
