@@ -16,4 +16,8 @@
         get_local $a
         call $add
     )
+
+    (func $faulty (result i32)
+        get_local $x
+    )
 )

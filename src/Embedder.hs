@@ -41,8 +41,10 @@ loadFile filename = do
 
 callFunc :: WasmModule -> [String] -> IO ()
 callFunc module' (f:xs) = do
-    vs <- return $ execFunc ('$':f) (toWasmVals xs) module'
-    putStrLn ("Result: " ++ show vs)
+    res <- return $ execFunc ('$':f) (toWasmVals xs) module'
+    case res of
+        Right vs -> putStrLn ("Result: " ++ show vs)
+        Left msg -> putStrLn ("Error: " ++ msg)
     wasmRepl module'
 
 toWasmVals :: [String] -> [WasmVal]

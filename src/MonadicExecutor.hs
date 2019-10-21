@@ -24,6 +24,8 @@ module MonadicExecutor(
     , getInstr
     , hasInstr
     , retrieveStack
+    , getStack
+    , throwError
     , lookupFunc
 ) where
 
@@ -84,26 +86,31 @@ label n c = Label n [] c
 -- code :: [Instr] -> Code
 -- code es = Code [] (fmap Plain es)
 
-newtype MExecutor a = Env (Config -> (a, Config))
+newtype MExecutor a = Env (Config -> (Either String a, Config))
 
 instance Functor MExecutor where
-    fmap f e = Env (\n ->   let (a, n1) = (unEnv e) n
-                            in  (f a, n1))
+    fmap f e = Env (\n ->   case (unEnv e) n of
+                                (Right a1, n1) -> (Right (f a1), n1)
+                                (Left msg, n1) -> (Left msg, n1))
 
 instance Applicative MExecutor where
     pure = return
-    f <*> v = Env (\n ->    let (a, n1) = (unEnv f) n
-                                (b, n2) = (unEnv v) n1
-                            in  (a b, n2))
+    f <*> v = Env (\n ->    let (val1, n1) = (unEnv f) n
+                                (val2, n2) = (unEnv v) n1
+                            in  case (val1, val2) of
+                                (Left msg1, Left msg2) -> (Left (msg1 ++ msg2), n2)
+                                (Left msg1, _) -> (Left msg1, n2)
+                                (_, Left msg2) -> (Left msg2, n2)
+                                (Right a1, Right b1) -> (Right (a1 b1), n2))
 
 instance Monad MExecutor where
-    return x = Env (\n -> (x, n))
-    e >>= f = Env (\n ->    let (a, n1) = (unEnv e) n
-                                (b, n2) = unEnv (f a) n1
-                            in  (b, n2))
+    return x = Env (\n -> (Right x, n))
+    e >>= f = Env (\n ->    case (unEnv e) n of
+                                (Left msg, n1) -> (Left msg, n1)
+                                (Right a1, n1) -> unEnv (f a1) n1)
 
 -- |    Unencapsulate the state function.
-unEnv :: MExecutor a -> (Config -> (a, Config))
+unEnv :: MExecutor a -> (Config -> (Either String a, Config))
 unEnv (Env e) = e
 
 code :: [Instr] -> Code
@@ -146,14 +153,19 @@ pushToStack :: WasmVal -> Config-> Config
 pushToStack v = over (confCode . stack) ((:) v)
 
 -- |    Pop the top most value from the stack of a Config.
-popFromStack :: Config -> (WasmVal, Config)
+popFromStack :: Config -> (Either String WasmVal, Config)
 popFromStack conf = case getStack conf of
-    [] -> error "Cannot pop"
-    v:vs -> (v, setStack vs conf)
+    [] -> (Left "Cannot pop an empty stack", conf)
+    v:vs -> (Right v, setStack vs conf)
+
+popFromInstr :: Config -> (Either String AdminInstr, Config)
+popFromInstr conf = case view (confCode . instr) conf of
+    [] -> (Left "Cannot pop an empty instruction stack", conf)
+    v:vs -> (Right v, set (confCode . instr) vs conf)
 
 -- |    Push a WasmVal onto the value stack.
 push :: WasmVal -> MExecutor ()
-push v = Env (\config -> ((), (pushToStack v config)))
+push v = Env (\config -> (Right (), (pushToStack v config)))
 
 -- |    Pop a single WasmVal from the value stack.
 pop :: MExecutor WasmVal
@@ -161,7 +173,7 @@ pop = Env (\config -> popFromStack config)
 
 -- |    Put a value into the local environment
 setVar :: String -> WasmVal -> MExecutor ()
-setVar id v = Env (\config -> ((), over (confFrame . locals) (Map.insert id v) config))
+setVar id v = Env (\config -> (Right (), over (confFrame . locals) (Map.insert id v) config))
 
 -- |    Get a value from the local environment specified by the variable.
 getVar :: String -> MExecutor WasmVal
@@ -169,24 +181,24 @@ getVar id = Env (\config -> (findLocal id (view (confFrame . locals) config), co
 
 -- |    Put an instruction on the execution stack.
 putInstr :: AdminInstr -> MExecutor ()
-putInstr i = Env (\config -> ((), over (confCode . instr) ((:) i) config))
+putInstr i = Env (\config -> (Right (), over (confCode . instr) ((:) i) config))
 
 -- |    Put a list of instructions on the execution stack.
 putInstrList :: [AdminInstr] -> MExecutor ()
-putInstrList is = Env (\config -> ((), over (confCode . instr) ((++) is) config))
+putInstrList is = Env (\config -> (Right (), over (confCode . instr) ((++) is) config))
 
 -- |    Get the first instruction from the execution stack.
 getInstr :: MExecutor AdminInstr
-getInstr = Env (\config -> (head (view (confCode . instr) config), over (confCode . instr) tail config))
+getInstr = Env (\config -> popFromInstr config)
 
 hasInstr :: MExecutor Bool
 hasInstr = Env (\config -> case view (confCode . instr) config of
-    [] -> (False, config)
-    _ -> (True, config))
+    [] -> (Right False, config)
+    _ ->  (Right True, config))
 
 -- |    Get the full value stack from the Config.
 retrieveStack :: MExecutor (Stack WasmVal)
-retrieveStack = Env(\config -> (view (confCode . stack) config, config))
+retrieveStack = Env(\config -> (Right (view (confCode . stack) config), config))
 
 -- |    Lookup the func with the specified tag from the functions loaded in
 --      the Config.
@@ -195,13 +207,17 @@ lookupFunc tag = Env (\config -> let f = findFunc tag (view (confFrame . funcs) 
                                  in  (f, config))
 
 -- |    Find a local variable from local environment.
-findLocal :: String -> Locals -> WasmVal
+findLocal :: String -> Locals -> Either String WasmVal
 findLocal id locals = case Map.lookup id locals of
-    Just v -> v
-    Nothing -> error "Value not found"
+    Just v -> Right v
+    Nothing -> Left ("The id: '" ++ id ++ "' was not bound")
+
+
+throwError :: String -> MExecutor ()
+throwError err = Env (\config -> (Left err, config))
 
 -- |    Find a Func from a given FuncMap. Throw a run-time error if not found.
-findFunc :: String -> FuncMap -> Func
+findFunc :: String -> FuncMap -> Either String Func
 findFunc tag funcMap = case Map.lookup tag funcMap of
-    Just f -> f
-    Nothing -> error "Function not present in module"
+    Just f -> Right f
+    Nothing -> Left ("Called function '" ++ tag ++ "' not present in module")

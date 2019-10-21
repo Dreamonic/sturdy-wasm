@@ -7,10 +7,12 @@ import Parser
 import WasmTypes
 
 
-execFunc :: String -> [WasmVal] -> WasmModule -> Stack WasmVal
-execFunc tag vs m = let config = setupFuncCall tag vs (buildConfig m)
-                    in  case snd $ (unEnv eval) config of
-                        Config _ (Code vs _) -> vs
+execFunc :: String -> [WasmVal] -> WasmModule -> Either String (Stack WasmVal)
+execFunc tag vs m = let config = setupFuncCall tag vs (buildConfig m) in
+                    let res = (unEnv eval) config
+                    in  case fst res of
+                        Left msg -> Left msg
+                        _        -> Right (getStack $ snd res)
 
 eval :: MExecutor ()
 eval = do
@@ -44,13 +46,13 @@ step (Plain e) = case e of
         Div _ -> do {    a <- pop ;
                             b <- pop ;
                             push (a / b) }
-        err ->   error ("Not implemented Binary: " ++ show err)
+        err ->   throwError ("Not implemented Binary: " ++ show err)
 
     Compare _ e' -> case e' of
         Eql -> do {    a <- pop ;
                             b <- pop ;
                             push $ boolToWasm (a == b) }
-        err -> error ("Not implemented Compare: " ++ show err)
+        err -> throwError ("Not implemented Compare: " ++ show err)
 
     Block tps es -> do {    let len = length tps in
                             let c = code es in
@@ -82,13 +84,13 @@ step (Plain e) = case e of
     Call tag ->     do {    f <- lookupFunc tag ;
                             putInstr (Invoke (Closure EmptyInst f)) }
 
-    err ->          error ("Not implemented Plain: " ++ show err)
+    err ->          throwError ("Not implemented Plain: " ++ show err)
 
 step (Invoke (Closure _ (Func name params _ instr))) = do {
     parseBinds params ;
     putInstrList (fmap Plain instr) }
 
-step err = error ("Not implemented instruction: " ++ show err)
+step err = throwError ("Not implemented instruction: " ++ show err)
 
 parseBinds :: [Param] -> MExecutor ()
 parseBinds ps = case ps of
