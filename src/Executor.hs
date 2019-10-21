@@ -2,8 +2,6 @@ module Executor
   ( execRed
   , execFunc
   , eval
-  , ExecutorException(..)
-  , executorCatch
   , step
   , Config(..)
   , ModInst(..)
@@ -22,27 +20,7 @@ import qualified Control.Exception as E
 
 import Data.Int
 
--- |All exceptions that can be thrown by the executor.
-{-# DEPRECATED  WasmArithError "These cases should reduce to traps" #-}
-data ExecutorException
-    = TypeError String          -- ^For failed type matching.
-    | LookupError String        -- ^For variable lookup errors.
-    | WasmArithError String     -- ^For arithmetic errors that would have been
-                                --  runtime errors in WASM (like div by zero).
-    | NotImplemented Instr      -- ^For unimplemented instruction.
-    deriving Show
-
-instance E.Exception ExecutorException
-
--- |Catches ExecutorExceptions by using the given handler function that are
---  possible thrown by the given expression.
-executorCatch :: (ExecutorException  -> IO a) -> a -> IO a
-executorCatch handler x = E.catch (E.evaluate x) handler
-
-
 {- Types -}
-
--- data Code = [value]
 
 data ModInst =
   EmptyInst
@@ -73,7 +51,6 @@ data AdminInstr =
   | Label Int [Instr] Code
   | Frame Frame Code
   deriving (Show, Eq)
-
 
 data Config =
   Config { confFrame :: Frame, confCode :: Code }
@@ -202,19 +179,17 @@ eval c@(Config _ (Code vs es)) = case es of
   (Trapping msg):_ -> error msg -- ^ TODO: change to other type of error handling
   _ -> eval $ step c
 
-{- reduction -}
 execFunc :: [WasmVal] -> Func -> Stack WasmVal
-execFunc vs f = eval (Config (FrameT EmptyInst Map.empty) (Code vs [Invoke (Closure EmptyInst f)]))
+execFunc vs f = eval (Config (FrameT EmptyInst Map.empty)
+    (Code vs [Invoke (Closure EmptyInst f)]))
 
 execRed :: Func -> Config
 execRed (Func name params results es) =
-  stackToConfig $ eval (Config (FrameT EmptyInst Map.empty) (Code [] [Invoke (Closure EmptyInst (Func name params results es))]))
+  stackToConfig $ eval (Config (FrameT EmptyInst Map.empty)
+    (Code [] [Invoke (Closure EmptyInst (Func name params results es))]))
 
 stackToConfig :: Stack WasmVal -> Config
 stackToConfig vs = Config (FrameT EmptyInst Map.empty) (Code vs [])
-
-extractStack :: Config -> Stack WasmVal
-extractStack (Config frame (Code vs es)) = vs
 
 addBinds :: Frame -> [Param] -> Stack WasmVal -> (Frame, Stack WasmVal)
 addBinds (FrameT inst locals) params vs = case (params, vs) of
@@ -229,46 +204,3 @@ findLocal :: String -> Frame -> WasmVal
 findLocal id (FrameT _ locals) = case Map.lookup id locals of
   Just v -> v
   Nothing -> error "Value not found"
-
--- |Determines whether or not the given WasmVal stack matches a given parameter
---  definition. Match checking is done using the valsOfType function.
-validParams :: [Param] -> [WasmVal] -> Bool
-validParams params vals =
-    let types = map (\(Param _ typ) -> typ) params
-    in valsOfType vals types
-
--- |Determines whether or not the given WasmVal stack matches a given list of
---  return values. Match checking is done using the valsOfType function.
-validResults :: [Result] -> [WasmVal] -> Bool
-validResults results vals =
-    let types = map (\(Result typ) -> typ) results
-    in valsOfType vals types
-
--- |Checks if WasmVals in a list correspond with a list of WasmTypes. False is
---  returned if the two lists differ in size.
-valsOfType :: [WasmVal] -> [WasmType] -> Bool
-valsOfType vals types =
-    let zipped = zipWith ofType vals types
-    in (length types) == (length vals) && (foldl (&&) True zipped)
-
--- |Defines wasm I32 values as "falsy" if equal to 0 and "truthy" otherwise.
---  Throws a TypeError if a value of any other type than I32 is given.
-valToBool :: WasmVal -> Bool
-valToBool val = case val of
-    I32Val x -> x /= 0
-    val -> E.throw (TypeError $ (show val) ++ " cannot be evaluated to Bool.")
-
--- |Evaluates an expression of two WasmVals and a numeric binary operator and
---  returns the resulting WasmVal.
---  Throws a TypeError if the operation and of the WasmVals aren't all of the
---  same type.
-binOp :: WasmType -> WasmVal -> WasmVal -> (Integer -> Integer -> Integer) ->
-    (Double -> Double -> Double) -> WasmVal
-binOp typ x y opI opF
-    | x `ofType` typ && y `ofType` typ = case (x, y) of
-        (I32Val a, I32Val b) -> I32Val (a `opI` b)
-        (I64Val a, I64Val b) -> I64Val (a `opI` b)
-        (F32Val a, F32Val b) -> F32Val (a `opF` b)
-        (F64Val a, F64Val b) -> F64Val (a `opF` b)
-        (_, _) -> E.throw (TypeError "binOp on two different types.")
-    | otherwise = E.throw (TypeError "binOp type does not match arg type.")
