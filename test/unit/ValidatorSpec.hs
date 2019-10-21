@@ -17,6 +17,7 @@ spec = do
     blocks
     branching
     control
+    local
 
 basic = describe "basic" $ do
     testSimpleFunction
@@ -41,6 +42,17 @@ control = describe "control" $ do
     testInvalidIfBranch
     testValidLoop
     testValidInfiniteLoop
+
+local = describe "locals" $ do
+    testGetLocal
+    testScopedGetLocal
+    testGetLocalIncorrectType
+    testGetLocalBinary
+    testSetLocal
+    testInvalidSetLocal
+    testLocalSetEmptyStack
+    testLocalTee
+    testLocalTeeEmptyStack
 
 testSimpleFunction = do
     let fn = Func "" [] [Result I32] [Const (I32Val 1), Const (I32Val 1), Binary I32 Add]
@@ -121,3 +133,48 @@ testValidInfiniteLoop = do
     let fn = Func "" [] [Result I32] [Loop [I32] [Const (F32Val 0), Br 0, Const (I32Val 1)]]
     it "Infinite loop with correct result should validate correctly" $
         eval (checkFunc fn) `shouldBe` True
+
+testGetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [LocalGet "foo"]
+    it "Getting existing local should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testScopedGetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [Block [I32] [Block [I32] [LocalGet "foo"]]]
+    it "Getting existing local from inside block should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testGetLocalIncorrectType = do
+    let fn = Func "" [Param "foo" F32] [Result I32] [LocalGet "foo"]
+    it "Getting incorrect local type should fail" $
+        eval (checkFunc fn) `shouldBe` False
+
+testGetLocalBinary = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [LocalGet "foo", LocalGet "foo", Binary I32 Add]
+    it "Adding same value should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testSetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I32Val 0), LocalSet "foo", LocalGet "foo"]
+    it "Setting correct local type should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testInvalidSetLocal = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I64Val 0), LocalSet "foo", LocalGet "foo"]
+    it "Setting incorrect local type should fail" $
+        eval (checkFunc fn) `shouldBe` False
+
+testLocalSetEmptyStack = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [LocalSet "foo", Const (I32Val 0), Br 0]
+    it "Local set with no value on stack should fail" $
+        eval (checkFunc fn) `shouldBe` False
+
+testLocalTee = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [Const (I32Val 2), LocalTee "foo"]
+    it "Local tee should validate correctly" $
+        eval (checkFunc fn) `shouldBe` True
+
+testLocalTeeEmptyStack = do
+    let fn = Func "" [Param "foo" I32] [Result I32] [LocalTee "foo", Const (I32Val 0), Br 0]
+    it "Local tee with no value on stack should fail" $
+        eval (checkFunc fn) `shouldBe` False
