@@ -95,13 +95,13 @@ instance Functor MExecutor where
 
 instance Applicative MExecutor where
     pure = return
-    f <*> v = Env (\n ->    let (val1, n1) = (unEnv f) n
-                                (val2, n2) = (unEnv v) n1
-                            in  case (val1, val2) of
-                                (Left msg1, Left msg2) -> (Left (msg1 ++ msg2), n2)
-                                (Left msg1, _) -> (Left msg1, n2)
-                                (_, Left msg2) -> (Left msg2, n2)
-                                (Right a1, Right b1) -> (Right (a1 b1), n2))
+    f <*> v = Env (\n -> let (val1, n1) = (unEnv f) n
+                             (val2, n2) = (unEnv v) n1
+                         in  case (val1, val2) of
+                             (Left msg1, Left msg2) -> (Left (msg1 ++ msg2), n2)
+                             (Left msg1, _) -> (Left msg1, n2)
+                             (_, Left msg2) -> (Left msg2, n2)
+                             (Right a1, Right b1) -> (Right (a1 b1), n2))
 
 instance Monad MExecutor where
     return x = Env (\n -> (Right x, n))
