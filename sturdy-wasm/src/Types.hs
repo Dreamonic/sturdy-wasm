@@ -1,4 +1,4 @@
-module WasmTypes(
+module Types(
   WasmType(..)
   , WasmVal(..)
   , ofType

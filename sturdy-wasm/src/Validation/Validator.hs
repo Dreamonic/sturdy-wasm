@@ -1,9 +1,10 @@
-module Validator where
+module Validation.Validator where
 
-import Parser
-import WasmTypes
 import Control.Monad
 import Data.List
+
+import Syntax
+import Types
 
 type ValType = WasmType
 data InferType = Actual ValType | Unknown deriving (Show, Eq)

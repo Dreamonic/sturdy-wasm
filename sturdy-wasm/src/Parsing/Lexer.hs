@@ -1,4 +1,4 @@
-module Lexer(
+module Parsing.Lexer(
     identifier
     , anyKeyword
     , keyword

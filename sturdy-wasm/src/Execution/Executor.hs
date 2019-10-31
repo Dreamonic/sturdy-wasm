@@ -1,4 +1,4 @@
-module Executor
+module Execution.Executor
   ( execRed
   , execFunc
   , eval
@@ -12,13 +12,14 @@ module Executor
   , Closure(..)
   ) where
 
-import Parser
-import WasmTypes
+
 import Debug.Trace
 import qualified Data.Map as Map
 import qualified Control.Exception as E
-
 import Data.Int
+
+import Syntax
+import Types
 
 {- Types -}
 

@@ -2,8 +2,9 @@ module ValidatorSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
-import Validator
-import Parser
+import Validation.Validator
+import Syntax
+import Types
 
 -- | Helper function for checking result of validation
 eval :: M a -> Bool

@@ -2,9 +2,9 @@ module ParserSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
-import Parser
-import Lexer
-import WasmTypes
+import Parsing.Parser as Parser
+import Parsing.Lexer
+import Types
 
 -- Test suites --
 

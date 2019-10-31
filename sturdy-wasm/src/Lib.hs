@@ -2,12 +2,13 @@ module Lib
     ( someFunc
     ) where
 
-import              Parser
 import              System.Environment
 import              Data.List
 import qualified    Data.Text as T (strip, pack, unpack)
 import              System.IO
-import              Embedder
+
+import              Embedding.Embedder
+import              Parsing.Parser
 
 -- |Executes interactive mode if no argument is given
 -- if a single argument is given, read file and execute
@@ -21,13 +22,13 @@ interactive :: IO ()
 interactive = do
     putStrLn "Character: "
     input <- getLine
-    print $ parseWasm Parser.function input
+    print $ parseWasm Parsing.Parser.function input
 
 -- |Reads a file and executes
 execute :: String -> IO ()
 execute filename = do
     contents <- readFile filename
-    print $ parseWasm Parser.function $ cleanInput contents -- TODO: clean up input string
+    print $ parseWasm Parsing.Parser.function $ cleanInput contents -- TODO: clean up input string
 
 someFunc :: IO ()
 someFunc = runWasmRepl

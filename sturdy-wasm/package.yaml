@@ -6,9 +6,9 @@ author:              "TU Delft"
 maintainer:          "none"
 copyright:           "2019 TU Delft"
 
-extra-source-files:
-- README.md
-- ChangeLog.md
+# extra-source-files:
+# - README.md
+# - ChangeLog.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package

@@ -1,4 +1,4 @@
-module Parser(
+module Parsing.Parser(
   WasmType(..)
   , WasmModule(..)
   , Func(..)
@@ -17,66 +17,67 @@ module Parser(
   , wasmModule
 ) where
 
+import Data.List
+
 import Text.ParserCombinators.Parsec
 
-import           Control.Monad
-import           Lexer
+import Control.Monad
+import Parsing.Lexer
+import Types(WasmType(..), WasmVal(..))
+import Syntax
 
-import Data.List
-import WasmTypes(WasmType(..), WasmVal(..))
+-- data Instr
+--   = Const WasmVal
+--   | Block [WasmType] [Instr]
+--   | Br Integer
+--   | BrIf Integer
+--   | If [WasmType] [Instr] [Instr]
+--   | Loop [WasmType] [Instr]
+--   | Call String
+--   | LocalGet String
+--   | LocalSet String
+--   | LocalTee String
+--   | Binary WasmType BinOpInstr
+--   | Unary WasmType UnOpInstr
+--   | Compare WasmType RelOpInstr
+--   | Nop
+--   | Unreachable
+--   deriving (Show, Eq)
 
-data Instr
-  = Const WasmVal
-  | Block [WasmType] [Instr]
-  | Br Integer
-  | BrIf Integer
-  | If [WasmType] [Instr] [Instr]
-  | Loop [WasmType] [Instr]
-  | Call String
-  | LocalGet String
-  | LocalSet String
-  | LocalTee String
-  | Binary WasmType BinOpInstr
-  | Unary WasmType UnOpInstr
-  | Compare WasmType RelOpInstr
-  | Nop
-  | Unreachable
-  deriving (Show, Eq)
+-- data BinOpInstr
+--   = Add
+--   | And
+--   | Sub
+--   | Mul
+--   | Div SignedNess
+--   | Or
+--   | Xor deriving (Show, Eq)
 
-data BinOpInstr
-  = Add
-  | And
-  | Sub
-  | Mul
-  | Div SignedNess
-  | Or
-  | Xor deriving (Show, Eq)
+-- data UnOpInstr
+--   = Neg
+--   | Abs deriving (Show, Eq)
 
-data UnOpInstr
-  = Neg
-  | Abs deriving (Show, Eq)
+-- data RelOpInstr
+--   = Eql deriving (Show, Eq)
 
-data RelOpInstr
-  = Eql deriving (Show, Eq)
+-- data Param = Param {getName :: String, getValue :: WasmType} deriving (Show, Eq)
+-- data Result = Result WasmType deriving (Show, Eq)
+-- data SignedNess = Signed | Unsigned deriving (Show, Eq)
+-- data Func = Func String [Param] [Result] [Instr] deriving (Show, Eq)
+-- data WasmModule = WasmModule [Func] deriving (Show, Eq)
 
-data Param = Param {getName :: String, getValue :: WasmType} deriving (Show, Eq)
-data Result = Result WasmType deriving (Show, Eq)
-data SignedNess = Signed | Unsigned deriving (Show, Eq)
-data Func = Func String [Param] [Result] [Instr] deriving (Show, Eq)
-data WasmModule = WasmModule [Func] deriving (Show, Eq)
+-- getResult :: Result -> WasmType
+-- getResult (Result t) = t
 
-getResult :: Result -> WasmType
-getResult (Result t) = t
+-- isInt :: WasmType -> Bool
+-- isInt I32 = True
+-- isInt I64 = True
+-- isInt _   = False
 
-isInt :: WasmType -> Bool
-isInt I32 = True
-isInt I64 = True
-isInt _   = False
-
-isFloat :: WasmType -> Bool
-isFloat F32 = True
-isFloat F64 = True
-isFloat _   = False
+-- isFloat :: WasmType -> Bool
+-- isFloat F32 = True
+-- isFloat F64 = True
+-- isFloat _   = False
 
 -- Parse a function body consisting of a mix of plain and foldedinstructions
 parseBody :: Parser [Instr]
@@ -152,10 +153,10 @@ parseConst = try $ do
   _ <- dot
   _ <- keyword "const"
   case t of
-        F32 -> Parser.Const . F32Val <$> float
-        F64 -> Parser.Const . F64Val <$> float
-        I32 -> Parser.Const . I32Val <$> integer
-        I64 -> Parser.Const . I64Val <$> integer
+        F32 -> Syntax.Const . F32Val <$> float
+        F64 -> Syntax.Const . F64Val <$> float
+        I32 -> Syntax.Const . I32Val <$> integer
+        I64 -> Syntax.Const . I64Val <$> integer
 
 parseCall :: Parser Instr
 parseCall = do

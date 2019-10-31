@@ -1,10 +1,10 @@
-module Eval (
+module Embedding.Eval (
     execFunc
 ) where
 
-import MonadicExecutor
-import Parser
-import WasmTypes
+import Execution.MonadicExecutor
+import Syntax
+import Types
 
 
 execFunc :: String -> [WasmVal] -> WasmModule -> Either String (Stack WasmVal)

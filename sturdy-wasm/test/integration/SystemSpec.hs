@@ -2,9 +2,9 @@ module SystemSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
-import Lexer
-import Parser
-import Executor
+import Parsing.Lexer
+import Parsing.Parser as Parser
+import Execution.Executor
 import qualified Data.Map as Map
 
 -- Test suites --

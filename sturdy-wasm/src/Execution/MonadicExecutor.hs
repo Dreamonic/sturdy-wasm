@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module MonadicExecutor(
+module Execution.MonadicExecutor(
     MExecutor(..)
     , ModInst(..)
     , Locals(..)
@@ -30,9 +30,11 @@ module MonadicExecutor(
 ) where
 
 import qualified Data.Map as Map
-import Parser
 import Debug.Trace
 import Control.Lens
+
+import Syntax
+import Types
 
 data ModInst =
     EmptyInst

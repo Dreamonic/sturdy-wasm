@@ -1,4 +1,4 @@
-module Embedder
+module Embedding.Embedder
   ( runWasmRepl
   , cleanInput
 ) where
@@ -6,10 +6,11 @@ module Embedder
 import qualified Data.Map as Map
 import qualified Data.Text as T (strip, pack, unpack)
 import Data.List
-import Parser
-import Eval
 import System.IO
-import MonadicExecutor
+
+import Parsing.Parser
+import Embedding.Eval
+import Execution.MonadicExecutor
 
 runWasmRepl :: IO ()
 runWasmRepl = wasmRepl (WasmModule [])
