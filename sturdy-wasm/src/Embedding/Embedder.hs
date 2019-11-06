@@ -8,6 +8,8 @@ import qualified Data.Text as T (strip, pack, unpack)
 import Data.List
 import System.IO
 
+import Syntax
+import Types
 import Parsing.Parser
 import Embedding.Eval
 import Execution.MonadicExecutor

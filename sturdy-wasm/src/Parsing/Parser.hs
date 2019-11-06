@@ -1,21 +1,4 @@
-module Parsing.Parser(
-  WasmType(..)
-  , WasmModule(..)
-  , Func(..)
-  , Instr(..)
-  , BinOpInstr(..)
-  , UnOpInstr(..)
-  , RelOpInstr(..)
-  , WasmVal(..)
-  , Param(..)
-  , Result(..)
-  , getResult
-  , SignedNess(..)
-  , parse
-  , function
-  , parseWasm
-  , wasmModule
-) where
+module Parsing.Parser where
 
 import Data.List
 
