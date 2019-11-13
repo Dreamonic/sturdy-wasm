@@ -42,22 +42,9 @@ executables:
     - sturdy-wasm
 
 tests:
-  unit-tests:
+  sturdy-wasm-tests:
     main:                Spec.hs
-    source-dirs:         test/unit
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - sturdy-wasm
-    - hspec
-    - hspec-discover
-    - QuickCheck
-
-  integration-tests:
-    main:                Spec.hs
-    source-dirs:         test/integration
+    source-dirs:         test
     ghc-options:
     - -threaded
     - -rtsopts

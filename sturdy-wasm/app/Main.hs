@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Embedder
 
 main :: IO ()
-main = someFunc
+main = runWasmRepl

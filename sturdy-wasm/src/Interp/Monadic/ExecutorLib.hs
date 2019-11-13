@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Execution.MonadicExecutor(
-    MExecutor(..)
+module Interp.Monadic.ExecutorLib
+    ( MExecutor(..)
     , ModInst(..)
     , Locals(..)
     , FuncMap(..)
@@ -27,7 +27,7 @@ module Execution.MonadicExecutor(
     , getStack
     , throwError
     , lookupFunc
-) where
+    ) where
 
 import qualified Data.Map as Map
 import Debug.Trace
@@ -35,6 +35,7 @@ import Control.Lens
 
 import Syntax
 import Types
+import Interp.Util
 
 data ModInst =
     EmptyInst
@@ -85,9 +86,6 @@ makeLenses ''Config
 label :: Int -> Code -> AdminInstr
 label n c = Label n [] c
 
--- code :: [Instr] -> Code
--- code es = Code [] (fmap Plain es)
-
 newtype MExecutor a = Env (Config -> (Either String a, Config))
 
 instance Functor MExecutor where
@@ -121,20 +119,6 @@ code es = Code [] (fmap Plain es)
 -- |    Construct a Config using the given WasmModule with
 buildConfig :: WasmModule -> Config
 buildConfig m = Config (FrameT EmptyInst Map.empty (funcMapFromModule m)) (Code [] [])
-
--- |    Retrieve a Map from a WasmModule from which Funcs can be fetched by
---      using the String of their name as a key.
-funcMapFromModule :: WasmModule -> FuncMap
-funcMapFromModule m = let funcs = funcsFromModule m
-                      in  Map.fromList (zip (map funcName funcs) funcs)
-
--- |    Retrieve the Funcs stored in a WasmModule.
-funcsFromModule :: WasmModule -> [Func]
-funcsFromModule (WasmModule funcs) = funcs
-
--- |    Get the name of a Func as a String.
-funcName :: Func -> String
-funcName (Func name _ _ _) = name
 
 -- |    Prepare the given Config for execution by inserting an instruction to
 --      call the desired instruction and by filling the stack with the given

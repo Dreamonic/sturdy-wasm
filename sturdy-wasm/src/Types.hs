@@ -13,6 +13,8 @@ module Types(
   , wasmfmap
   , boolToWasm
   , wasmToBool
+  , isInt
+  , isFloat
 ) where
 
 import Data.Bool
@@ -22,7 +24,7 @@ data WasmType
     | I64
     | F32
     | F64
-    deriving (Show, Eq)  
+    deriving (Show, Eq)
 
 data WasmVal
     = I32Val Integer
@@ -133,6 +135,12 @@ wasmToBool x = case x of
 
 ofType :: WasmVal -> WasmType -> Bool
 ofType val typ = (getType val) == typ
+
+isInt :: WasmType -> Bool
+isInt t = t == I32 || t == I64
+
+isFloat :: WasmType -> Bool
+isFloat t = t == F32 || t == F64
 
 toWasmI :: WasmType -> Integer -> WasmVal
 toWasmI typ x = case typ of

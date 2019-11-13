@@ -1,21 +1,9 @@
-module Parsing.Parser(
-  WasmType(..)
-  , WasmModule(..)
-  , Func(..)
-  , Instr(..)
-  , BinOpInstr(..)
-  , UnOpInstr(..)
-  , RelOpInstr(..)
-  , WasmVal(..)
-  , Param(..)
-  , Result(..)
-  , getResult
-  , SignedNess(..)
-  , parse
+module Parsing.Parser
+  ( parse
   , function
   , parseWasm
   , wasmModule
-) where
+  ) where
 
 import Data.List
 
@@ -23,7 +11,7 @@ import Text.ParserCombinators.Parsec
 
 import Control.Monad
 import Parsing.Lexer
-import Types(WasmType(..), WasmVal(..))
+import Types(WasmType(..), WasmVal(..), isInt, isFloat)
 import Syntax
 
 -- Parse a function body consisting of a mix of plain and foldedinstructions

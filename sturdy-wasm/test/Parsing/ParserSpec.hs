@@ -1,10 +1,11 @@
-module ParserSpec (spec) where
+module Parsing.ParserSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
 import Parsing.Parser as Parser
 import Parsing.Lexer
 import Types
+import Syntax
 
 -- Test suites --
 

@@ -1,4 +1,20 @@
-module Syntax where
+module Syntax
+    ( Instr(..)
+    , BinOpInstr(..)
+    , UnOpInstr(..)
+    , RelOpInstr(..)
+    , Param(..)
+    , getName
+    , getValue
+    , Result(..)
+    , getResult
+    , Signedness(..)
+    , Func(..)
+    , fName
+    , WasmModule(..)
+    , modFuncs
+    ) where
+
 
 import Types
 
@@ -19,13 +35,13 @@ data Instr
     | Nop
     | Unreachable
     deriving (Show, Eq)
-  
+
 data BinOpInstr
     = Add
     | And
     | Sub
     | Mul
-    | Div SignedNess
+    | Div Signedness
     | Or
     | Xor deriving (Show, Eq)
 
@@ -36,21 +52,14 @@ data UnOpInstr
 data RelOpInstr
     = Eql deriving (Show, Eq)
 
-data Param = Param {getName :: String, getValue :: WasmType} deriving (Show, Eq)
-data Result = Result WasmType deriving (Show, Eq)
-data SignedNess = Signed | Unsigned deriving (Show, Eq)
-data Func = Func String [Param] [Result] [Instr] deriving (Show, Eq)
-data WasmModule = WasmModule [Func] deriving (Show, Eq)
+data Param = Param { getName :: String, getValue :: WasmType }
+    deriving (Show, Eq)
 
-getResult :: Result -> WasmType
-getResult (Result t) = t
+data Result = Result { getResult :: WasmType } deriving (Show, Eq)
 
-isInt :: WasmType -> Bool
-isInt I32 = True
-isInt I64 = True
-isInt _   = False
+data Signedness = Signed | Unsigned deriving (Show, Eq)
 
-isFloat :: WasmType -> Bool
-isFloat F32 = True
-isFloat F64 = True
-isFloat _   = False
+data Func = Func { fName :: String, fParams :: [Param], fRes :: [Result],
+                   fIs :: [Instr] } deriving (Show, Eq)
+
+data WasmModule = WasmModule { modFuncs :: [Func] } deriving (Show, Eq)

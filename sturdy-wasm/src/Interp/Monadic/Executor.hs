@@ -1,13 +1,13 @@
-module Embedding.Eval (
-    execFunc
-) where
+module Interp.Monadic.Executor
+    ( execFunc
+    ) where
 
-import Execution.MonadicExecutor
+import Interp.Monadic.ExecutorLib
+import Interp.Util
 import Syntax
 import Types
 
-
-execFunc :: String -> [WasmVal] -> WasmModule -> Either String (Stack WasmVal)
+execFunc :: ExecType
 execFunc tag vs m = let config = setupFuncCall tag vs (buildConfig m) in
                     let res = (unEnv eval) config
                     in  case fst res of

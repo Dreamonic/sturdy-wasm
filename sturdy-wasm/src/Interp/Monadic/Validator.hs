@@ -1,4 +1,4 @@
-module Validation.Validator where
+module Interp.Monadic.Validator where
 
 import Control.Monad
 import Data.List
@@ -57,8 +57,8 @@ popOp expect ctx = do
         else
             Right $ head ops'
     case (actual, expect) of
-        (Actual a, Actual b) -> 
-            if a == b then 
+        (Actual a, Actual b) ->
+            if a == b then
                 return $ (actual, ctx { ops = drop 1 ops' })
             else Left $ "Expected: " ++ show expect ++ " but got: " ++ show actual
         otherwise -> return (actual, ctx { ops = drop 1 ops' })
@@ -90,8 +90,8 @@ popCtrl ctx @ (Context _ (f:fs) _ _) = do
 
 setUnreachable :: Context -> Context
 setUnreachable ctx @ (Context _ [] _ _) = ctx
-setUnreachable ctx @ (Context ops' (f:fs) _ _) = ctx { 
-    frames = (f { unreachable = True } ):fs, 
+setUnreachable ctx @ (Context ops' (f:fs) _ _) = ctx {
+    frames = (f { unreachable = True } ):fs,
     ops = drop ((length ops') - (height f)) ops'
     }
 
@@ -99,7 +99,7 @@ setUnreachable ctx @ (Context ops' (f:fs) _ _) = ctx {
 newtype M a = Env (Context -> Either String (a, Context))
 unpack (Env f) = f
 
-instance Functor M where 
+instance Functor M where
     fmap f e = Env $ \ctx -> do
         (a, ctx') <- (unpack e) ctx
         return (f a, ctx')
@@ -137,7 +137,7 @@ popM expected = Env $ \ctx -> do
     (r, ctx') <- popOp expected ctx
     return (r, ctx')
 
--- | Checks if the current value matches the expected value 
+-- | Checks if the current value matches the expected value
 peekM :: InferType -> M ()
 peekM expected = popM expected >> pushM expected
 
@@ -212,7 +212,7 @@ checkM e = case e of
     Const val -> do
         let t = getType val
         pushM $ Actual t
-        
+
     Block t ops' -> do
         checkLabel t t ops'
         forM_ (known t) pushM
@@ -231,7 +231,7 @@ checkM e = case e of
         frame <- peekCtrlM n
         forM_ (known $ labels frame) popM
         forM_ (known $ labels frame) pushM
-        
+
     If t trueBr falseBr -> do
         popM $ Actual I32
         checkLabel t t trueBr
@@ -273,7 +273,7 @@ checkM e = case e of
 -- | Applies checkM on a list of instructions
 checkSeqM :: [Instr] -> M ()
 checkSeqM ops' = mapM_ checkM ops'
-    
+
 -- | Validate label under context
 checkLabel :: [ValType] -> [ValType] -> [Instr] -> M()
 checkLabel labels results ops' = do
