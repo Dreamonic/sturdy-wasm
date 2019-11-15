@@ -88,7 +88,12 @@ step (Plain e) = case e of
 
 step (Invoke (Closure _ (Func name params _ instr))) = do {
     parseBinds params ;
-    putInstrList (fmap Plain instr) }
+    putBlock instr }
+
+step (Breaking levels vs) = case levels of
+    0 ->        endLabel
+    n -> do {   branchUp;
+                putInstr (Breaking (n-1) vs) }
 
 step err = throwError ("Not implemented instruction: " ++ show err)
 
