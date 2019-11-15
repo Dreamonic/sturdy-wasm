@@ -8,6 +8,7 @@ import Parsing.Parser (parseWasm, wasmModule)
 import Syntax
 import Types
 import Interp.Util (ExecType(..))
+import Generators
 
 parse :: String -> WasmModule
 parse = parseWasm wasmModule
@@ -195,5 +196,5 @@ programEvenOdd = parse
     \end))"
 
 testEvenOdd execFunc = it "Test complex function calls" $
-    property $ \x -> execFunc "$even" [I32Val (x::Integer)] programEvenOdd
-        `shouldBe` (Right [(boolToWasm (even (x::Integer)))])
+    forAll genNonNeg $ \x -> execFunc "$even" [I32Val (x::Integer)]
+        programEvenOdd `shouldBe` (Right [(boolToWasm (even (x::Integer)))])

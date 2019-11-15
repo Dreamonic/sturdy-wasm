@@ -9,6 +9,4 @@ spec :: Spec
 spec = describe "Run test programs on DirectStyle Executor" $
        sequence_ (fmap (\t -> t execFunc) tests)
 
-tests = [testSimpleFunction, testReadLocalVars, testSetLocalVars, testEquals,
-         testEqualsFalse, testBlock, testLoop, testIfElse, testNestedBlocks,
-         testFunctionCalls]
+tests = allTests
