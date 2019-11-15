@@ -21,14 +21,15 @@ wasmRepl module' = do
     hFlush stdout
     input <- getLine
     argv <- return $ words input
-    putStrLn ("Input: " ++ show argv)
     processRepl module' argv
 
 processRepl :: WasmModule -> [String] -> IO ()
 processRepl module' argv = case argv of
-    "exit":_ -> putStrLn "Goodbye!"
-    ":l":xs ->  loadFile $ head xs
+    "exit":_ -> goodbye
+    ":q":_   -> goodbye
+    ":l":xs  -> loadFile $ head xs
     vs ->       callFunc module' vs
+    where goodbye = putStrLn "Goodbye!"
 
 cleanInput :: String -> String
 cleanInput str = intercalate " " (filter (/="") (map (T.unpack . T.strip . T.pack) (lines str)))
