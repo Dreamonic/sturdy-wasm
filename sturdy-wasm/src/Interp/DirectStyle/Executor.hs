@@ -1,24 +1,15 @@
-module Executor
-  ( execRed
-  , execFunc
-  , eval
-  , step
-  , Config(..)
-  , ModInst(..)
-  , Locals(..)
-  , Frame(..)
-  , Code(..)
-  , AdminInstr(..)
-  , Closure(..)
-  ) where
+module Interp.DirectStyle.Executor
+    ( execFunc
+    ) where
 
-import Parser
-import WasmTypes
 import Debug.Trace
 import qualified Data.Map as Map
 import qualified Control.Exception as E
-
 import Data.Int
+
+import Syntax
+import Types
+import Interp.Util
 
 {- Types -}
 
@@ -27,9 +18,10 @@ data ModInst =
   deriving (Show, Eq)
 
 type Locals = Map.Map String WasmVal
+type FuncMap = Map.Map String Func
 
 data Frame =
-  FrameT ModInst Locals
+  FrameT { modInst :: ModInst, locals :: Locals, funcs :: FuncMap }
   deriving (Show, Eq)
 
 type Stack a = [a]
@@ -55,6 +47,10 @@ data AdminInstr =
 data Config =
   Config { confFrame :: Frame, confCode :: Code }
   deriving (Show, Eq)
+
+execFunc :: ExecType
+execFunc tag vs m = Right $ eval (Config (FrameT EmptyInst Map.empty
+    (funcMapFromModule m)) (Code vs [Plain (Call tag)]))
 
 {- reduction -}
 
@@ -125,6 +121,9 @@ step' (Plain e) vs (Config frame _) = case (e, vs) of
     case vs of
       v : vs' -> (addBind frame e' v, vs', [])
 
+  (Call tag, vs) ->
+    (frame, vs, [Invoke (Closure EmptyInst (findFunc tag frame))])
+
   err -> error $ "unimplemented plain: " ++ show err
 
 -- End of label
@@ -179,28 +178,24 @@ eval c@(Config _ (Code vs es)) = case es of
   (Trapping msg):_ -> error msg -- ^ TODO: change to other type of error handling
   _ -> eval $ step c
 
-execFunc :: [WasmVal] -> Func -> Stack WasmVal
-execFunc vs f = eval (Config (FrameT EmptyInst Map.empty)
-    (Code vs [Invoke (Closure EmptyInst f)]))
-
-execRed :: Func -> Config
-execRed (Func name params results es) =
-  stackToConfig $ eval (Config (FrameT EmptyInst Map.empty)
-    (Code [] [Invoke (Closure EmptyInst (Func name params results es))]))
-
-stackToConfig :: Stack WasmVal -> Config
-stackToConfig vs = Config (FrameT EmptyInst Map.empty) (Code vs [])
-
 addBinds :: Frame -> [Param] -> Stack WasmVal -> (Frame, Stack WasmVal)
-addBinds (FrameT inst locals) params vs = case (params, vs) of
-  ([], vs') -> ((FrameT inst locals), vs')
-  (Param name _ : ps, v:vs') -> addBinds (FrameT inst (Map.insert name v locals)) ps vs'
+addBinds (FrameT inst locals funcs) params vs = case (params, vs) of
+  ([], vs') -> ((FrameT inst locals funcs), vs')
+  (Param name _ : ps, v:vs') -> addBinds (FrameT inst (Map.insert name v locals)
+                                         funcs) ps vs'
   _ -> error "Expected more arguments"
 
 addBind :: Frame -> String -> WasmVal -> Frame
-addBind (FrameT inst locals) string value = FrameT inst (Map.insert string value locals)
+addBind (FrameT inst locals funcs) string value =
+    FrameT inst (Map.insert string value locals) funcs
 
 findLocal :: String -> Frame -> WasmVal
-findLocal id (FrameT _ locals) = case Map.lookup id locals of
-  Just v -> v
-  Nothing -> error "Value not found"
+findLocal i fr = lookupErr "Value not found" i (locals fr)
+
+findFunc :: String -> Frame -> Func
+findFunc tag fr = lookupErr ("Function " ++ tag ++ " not found") tag (funcs fr)
+
+lookupErr :: (Ord k) => String -> k -> Map.Map k v -> v
+lookupErr msg k m  = case Map.lookup k m of
+    Just v -> v
+    Nothing -> error msg

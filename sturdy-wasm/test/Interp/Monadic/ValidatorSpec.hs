@@ -1,18 +1,19 @@
-module ValidatorSpec (spec) where
+module Interp.Monadic.ValidatorSpec (spec) where
 
 import Test.QuickCheck
 import Test.Hspec
-import Validator
-import Parser
+import Interp.Monadic.Validator
+import Syntax
+import Types
 
 -- | Helper function for checking result of validation
 eval :: M a -> Bool
 eval m = case unpack m emptyCtx of
-    Left _ -> False 
+    Left _ -> False
     Right _ -> True
-    
+
 spec :: Spec
-spec = do 
+spec = do
     basic
     blocks
     branching
