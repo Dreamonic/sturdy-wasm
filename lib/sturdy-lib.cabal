@@ -1,0 +1,242 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 0108bb518576fd2c1cacd60b2d84d3c6bcb0f1d994a0a0397ff3f5f2ce70ba7c
+
+name:           sturdy-lib
+version:        0.2.0.0
+synopsis:       A library for sound static analyses
+category:       Language
+homepage:       https://github.com/svenkeidel/sturdy#readme
+bug-reports:    https://github.com/svenkeidel/sturdy/issues
+maintainer:     Sven Keidel <svenkeidel@gmail.com>
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/svenkeidel/sturdy
+
+library
+  exposed-modules:
+      Control.Arrow.Closure
+      Control.Arrow.Const
+      Control.Arrow.Cont
+      Control.Arrow.Environment
+      Control.Arrow.Except
+      Control.Arrow.Fail
+      Control.Arrow.Fix
+      Control.Arrow.Fix.Cache
+      Control.Arrow.Fix.Chaotic
+      Control.Arrow.Fix.Context
+      Control.Arrow.Fix.Parallel
+      Control.Arrow.Fix.Stack
+      Control.Arrow.Fix.Widening
+      Control.Arrow.Monad
+      Control.Arrow.Order
+      Control.Arrow.Random
+      Control.Arrow.Reader
+      Control.Arrow.State
+      Control.Arrow.Store
+      Control.Arrow.Trans
+      Control.Arrow.Transformer.Abstract.Completion
+      Control.Arrow.Transformer.Abstract.Environment
+      Control.Arrow.Transformer.Abstract.Error
+      Control.Arrow.Transformer.Abstract.Except
+      Control.Arrow.Transformer.Abstract.Failure
+      Control.Arrow.Transformer.Abstract.FiniteEnvironment
+      Control.Arrow.Transformer.Abstract.Fix
+      Control.Arrow.Transformer.Abstract.Fix.Cache
+      Control.Arrow.Transformer.Abstract.Fix.Chaotic
+      Control.Arrow.Transformer.Abstract.Fix.Context
+      Control.Arrow.Transformer.Abstract.Fix.Metrics
+      Control.Arrow.Transformer.Abstract.Fix.Stack
+      Control.Arrow.Transformer.Abstract.Fix.Trace
+      Control.Arrow.Transformer.Abstract.Powerset
+      Control.Arrow.Transformer.Abstract.ReachingDefinitions
+      Control.Arrow.Transformer.Abstract.Store
+      Control.Arrow.Transformer.Abstract.Terminating
+      Control.Arrow.Transformer.Cokleisli
+      Control.Arrow.Transformer.Concrete.Environment
+      Control.Arrow.Transformer.Concrete.Except
+      Control.Arrow.Transformer.Concrete.Failure
+      Control.Arrow.Transformer.Concrete.Random
+      Control.Arrow.Transformer.Concrete.ReachingDefinitions
+      Control.Arrow.Transformer.Concrete.Store
+      Control.Arrow.Transformer.Const
+      Control.Arrow.Transformer.Cont
+      Control.Arrow.Transformer.FreeVars
+      Control.Arrow.Transformer.Kleisli
+      Control.Arrow.Transformer.NoInline
+      Control.Arrow.Transformer.ReachingDefinitions
+      Control.Arrow.Transformer.Reader
+      Control.Arrow.Transformer.State
+      Control.Arrow.Transformer.Static
+      Control.Arrow.Transformer.Value
+      Control.Arrow.Transformer.Writer
+      Control.Arrow.Utils
+      Control.Arrow.Value
+      Control.Arrow.Writer
+      Data.Abstract.Boolean
+      Data.Abstract.CallString
+      Data.Abstract.Closure
+      Data.Abstract.Constructor
+      Data.Abstract.DiscretePowerset
+      Data.Abstract.Either
+      Data.Abstract.Environment.Flat
+      Data.Abstract.Environment.Grammar
+      Data.Abstract.Equality
+      Data.Abstract.Error
+      Data.Abstract.Except
+      Data.Abstract.Failure
+      Data.Abstract.FreeCompletion
+      Data.Abstract.IndirectMap
+      Data.Abstract.InfiniteNumbers
+      Data.Abstract.IntersectionSet
+      Data.Abstract.Interval
+      Data.Abstract.Map
+      Data.Abstract.Maybe
+      Data.Abstract.Narrowing
+      Data.Abstract.Ordering
+      Data.Abstract.Powerset
+      Data.Abstract.Sign
+      Data.Abstract.Singleton
+      Data.Abstract.Stable
+      Data.Abstract.StrongMap
+      Data.Abstract.Terminating
+      Data.Abstract.There
+      Data.Abstract.TreeGrammar.Constructor
+      Data.Abstract.TreeGrammar.Widening
+      Data.Abstract.WeakMap
+      Data.Abstract.Widening
+      Data.Boolean
+      Data.Concrete.Boolean
+      Data.Concrete.Closure
+      Data.Concrete.Error
+      Data.Concrete.Powerset
+      Data.Empty
+      Data.GaloisConnection
+      Data.Identifiable
+      Data.Label
+      Data.Lens
+      Data.Metric
+      Data.Monoidal
+      Data.Numeric
+      Data.Order
+      Data.Scan
+      Data.Singleton
+      Data.TreeGrammar
+      Data.TreeGrammar.ClosedSet
+      Data.TreeGrammar.HashMap
+      Data.TreeGrammar.IntMap
+      Data.TreeGrammar.NonTerminal
+      Data.TreeGrammar.OrdMap
+      Data.TreeGrammar.Terminal
+      Data.Utils
+  other-modules:
+      Paths_sturdy_lib
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  build-depends:
+      base
+    , comonad
+    , containers
+    , deepseq
+    , hashable
+    , mtl
+    , profunctors
+    , random
+    , text
+    , union-find
+    , unordered-containers
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      ContextSensitivitySpec
+      FixpointSpec
+      FlatEnvironmentSpec
+      GrammarEnvironmentSpec
+      MapSpec
+      TreeGrammarSpec
+      UtilsSpec
+      TestPrograms
+      Paths_sturdy_lib
+  hs-source-dirs:
+      test
+      test-programs
+  build-depends:
+      QuickCheck
+    , base
+    , comonad
+    , containers
+    , deepseq
+    , hashable
+    , hspec
+    , mtl
+    , profunctors
+    , random
+    , sturdy-lib
+    , text
+    , union-find
+    , unordered-containers
+  default-language: Haskell2010
+
+benchmark arrow-transformers
+  type: exitcode-stdio-1.0
+  main-is: ArrowTransformerBench.hs
+  other-modules:
+      Paths_sturdy_lib
+  hs-source-dirs:
+      bench/transformer
+  ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2
+  build-depends:
+      base
+    , comonad
+    , containers
+    , criterion
+    , deepseq
+    , dump-core
+    , hashable
+    , mtl
+    , profunctors
+    , random
+    , sturdy-lib
+    , text
+    , union-find
+    , unordered-containers
+  default-language: Haskell2010
+
+benchmark fixpoint
+  type: exitcode-stdio-1.0
+  main-is: FixpointBench.hs
+  other-modules:
+      TestPrograms
+      Paths_sturdy_lib
+  hs-source-dirs:
+      bench/fixpoint
+      test-programs
+  ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2
+  build-depends:
+      base
+    , comonad
+    , containers
+    , criterion
+    , deepseq
+    , dump-core
+    , hashable
+    , mtl
+    , profunctors
+    , random
+    , sturdy-lib
+    , text
+    , union-find
+    , unordered-containers
+  default-language: Haskell2010
