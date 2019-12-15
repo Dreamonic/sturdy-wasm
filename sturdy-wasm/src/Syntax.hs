@@ -15,7 +15,6 @@ module Syntax
     , modFuncs
     ) where
 
-
 import Types
 
 data Instr
