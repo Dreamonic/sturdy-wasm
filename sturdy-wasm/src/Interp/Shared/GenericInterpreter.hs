@@ -11,8 +11,7 @@ import Prelude hiding (compare)
 
 import Syntax
 import Types
-
-data Bl = Bl {blInstrs :: [Instr], blRty :: [WasmType]}
+import Control.Arrow.Wasm
 
 class (Arrow a) => IsVal v f a | a -> f, a -> v where
     const :: a WasmVal v
@@ -21,4 +20,9 @@ class (Arrow a) => IsVal v f a | a -> f, a -> v where
     compare :: a (WasmType, RelOpInstr, v, v) v
     br :: a Int ()
     onExit :: a () ()
-    if_ :: a (a Bl [v], a Bl [v]) (a (Bl, Bl) [v])
+    if_ :: a (a x z, a y z) (a (x, y) z)
+
+-- interp :: (IsVal v f a, ArrowRun a, ArrowFail e a, ArrowWasm a,
+--     ArrowFix [Instr] [v]) => a [Instr] [v]
+-- interp = fix $ \interp' -> proc instrs -> case instrs of
+--     [] ->
