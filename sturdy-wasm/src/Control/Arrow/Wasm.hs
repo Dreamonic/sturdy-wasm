@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE Arrows #-}
 
 module Control.Arrow.Wasm
     ( Frame(..)
@@ -9,6 +10,7 @@ module Control.Arrow.Wasm
     , frData
     , ArrowWasm
     , pushV
+    , pushManyV
     , popV
     , clearV
     , pushF
@@ -31,14 +33,19 @@ data Frame v fd = Frame {_frVStack :: [v], _frIStack :: [Instr], _frData :: fd}
 
 makeLenses ''Frame
 
-class (ArrowChoice a, Profunctor a) => ArrowWasm v fd a | a -> v, a -> fd where
-    pushV :: a v ()
-    popV :: a () v
-    clearV :: a () ()
-    pushF :: a (Frame v fd) ()
-    popF :: a () (Frame v fd)
-    setLocals :: a (M.Map String v) ()
-    getLocal :: a String v
-    setLocal :: a (String, v) ()
-    setFuncs :: a (M.Map String Func) ()
-    getFunc :: a String Func
+class (ArrowChoice c, Profunctor c) => ArrowWasm v fd c | c -> v, c -> fd where
+    pushV :: c v ()
+    pushManyV :: c [v] ()
+    pushManyV = proc x -> case x of
+        []   -> returnA -< ()
+        v:vs -> do pushV -< v
+                   pushManyV -< vs
+    popV :: c () v
+    clearV :: c () ()
+    pushF :: c (Frame v fd) ()
+    popF :: c () (Frame v fd)
+    setLocals :: c (M.Map String v) ()
+    getLocal :: c String v
+    setLocal :: c (String, v) ()
+    setFuncs :: c (M.Map String Func) ()
+    getFunc :: c String Func
