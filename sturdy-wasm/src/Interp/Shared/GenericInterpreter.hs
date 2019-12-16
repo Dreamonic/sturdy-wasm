@@ -47,4 +47,6 @@ interp = fix $ \interp' -> proc instrs -> case instrs of
         is' <- br -< n
         interp' -< is'
     (BrIf n):is -> interp' -< (If [Br n] [] []):is
-    (If ifIs elseIs tys) -> if_ interp' interp' -< (ifIs, elseIs)
+    (If ifIs elseIs tys) -> do
+        fr
+        if_ interp' interp' -< (ifIs, elseIs)
