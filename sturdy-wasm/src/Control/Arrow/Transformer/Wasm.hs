@@ -28,8 +28,7 @@ import Syntax
 import Control.Arrow.Wasm
 
 data WasmState v fd = WasmState { _vStack :: [v]
-                                , _fStack :: [Frame v fd]
-                                , _locals :: M.Map String v
+                                , _closures :: [Closure v fd]
                                 , _funcs :: M.Map String Func }
 
 makeLenses ''WasmState
@@ -43,17 +42,19 @@ deriving instance (ArrowChoice c, Profunctor c)
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     => ArrowWasm v fd (WasmT v fd c) where
-    pushV     = push $ over vStack
-    popV      = pop (view vStack) (set vStack)
+    pushVal   = push $ over vStack
+    popVal    = pop (view vStack) (set vStack)
         "Cannot pop from an empty value stack."
-    clearV    = modify $ proc ((), st) -> returnA -< ((), set vStack [] st)
-    pushF     = push $ over fStack
-    popF      = pop (view fStack) (set fStack)
+    pushFr    = push $ over (closures . closFrs)
+    popFr     = pop (view (closures . closFrs)) (set (closures . closFrs))
         "Cannot pop from an empty frame stack."
-    setLocals = replace $ set locals
-    getLocal  = lookup (view locals) $ printf "Variable %s not in scope."
+    pushClos  = push $ over closures
+    popClos   = pop $ (view closures) (set closures)
+        "Cannot pop from an empty closure stack."
+    getLocal  = lookup (view (closures . closVars) $ printf
+        "Variable %s not in scope."
     setLocal  = modify $ proc ((var, v), st) ->
-        returnA -< ((), over locals (M.insert var v) st)
+        returnA -< ((), over (closures . closVars) (M.insert var v) st)
     setFuncs  = replace $ set funcs
     getFunc   = lookup (view funcs) $ printf "No function %s in module."
 

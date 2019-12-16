@@ -5,9 +5,12 @@
 
 module Control.Arrow.Wasm
     ( Frame(..)
-    , frVStack
-    , frIStack
+    , frVals
+    , frInstrs
     , frData
+    , Closure
+    , closVars
+    , closFrs
     , ArrowWasm
     , pushV
     , pushManyV
@@ -29,22 +32,27 @@ import Control.Lens.TH
 
 import Syntax
 
-data Frame v fd = Frame {_frVStack :: [v], _frIStack :: [Instr], _frData :: fd}
+data Frame v fd = Frame { _frVals :: [v]
+                        , _frInstrs :: [Instr]
+                        , _frData :: fd }
+data Closure v fd = Closure { _closVars :: M.Map String v
+                            , _closFrs :: [Frame v fd] }
 
 makeLenses ''Frame
+makeLenses ''Closure
 
-class (ArrowChoice c, Profunctor c) => ArrowWasm v fd c | c -> v, c -> fd where
-    pushV :: c v ()
-    pushManyV :: c [v] ()
-    pushManyV = proc x -> case x of
+class (ArrowChoice c, Profunctor c) => Arr owWasm v fd c | c -> v, c -> fd where
+    pushVal :: c v ()
+    pushVals :: c [v] ()
+    pushVals = proc x -> case x of
         []   -> returnA -< ()
-        v:vs -> do pushV -< v
-                   pushManyV -< vs
-    popV :: c () v
-    clearV :: c () ()
-    pushF :: c (Frame v fd) ()
-    popF :: c () (Frame v fd)
-    setLocals :: c (M.Map String v) ()
+        v:vs -> do pushVal -< v
+                   pushVals -< vs
+    popVal :: c () v
+    pushFr :: c (Frame v fd) ()
+    popFr :: c () (Frame v fd)
+    pushClos :: c (Closure v fd) ()
+    popClos :: c () (Closure v fd)
     getLocal :: c String v
     setLocal :: c (String, v) ()
     setFuncs :: c (M.Map String Func) ()
