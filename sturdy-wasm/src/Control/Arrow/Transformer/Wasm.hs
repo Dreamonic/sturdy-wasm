@@ -27,8 +27,7 @@ import Control.Arrow.Transformer.State
 import Syntax
 import Control.Arrow.Wasm
 
-data WasmState v fd = WasmState { _vStack :: [v]
-                                , _closures :: [Closure v fd]
+data WasmState v fd = WasmState { _closures :: [Closure v fd]
                                 , _funcs :: M.Map String Func }
 
 makeLenses ''WasmState
@@ -42,38 +41,70 @@ deriving instance (ArrowChoice c, Profunctor c)
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     => ArrowWasm v fd (WasmT v fd c) where
-    pushVal   = push $ over vStack
-    popVal    = pop (view vStack) (set vStack)
-        "Cannot pop from an empty value stack."
-    pushFr    = push $ over (closures . closFrs)
-    popFr     = pop (view (closures . closFrs)) (set (closures . closFrs))
-        "Cannot pop from an empty frame stack."
-    pushClos  = push $ over closures
-    popClos   = pop $ (view closures) (set closures)
-        "Cannot pop from an empty closure stack."
-    getLocal  = lookup (view (closures . closVars) $ printf
-        "Variable %s not in scope."
-    setLocal  = modify $ proc ((var, v), st) ->
-        returnA -< ((), over (closures . closVars) (M.insert var v) st)
-    setFuncs  = replace $ set funcs
-    getFunc   = lookup (view funcs) $ printf "No function %s in module."
+    pushVal   = modifyTopFrame $ proc (v, fr) ->
+        returnA -< ((), over frVals (v:) fr)
 
-push :: ArrowState s c => (([a] -> [a]) -> s -> s) -> c a ()
-push overlens = modify $ proc (x, st) -> returnA -< ((), overlens (x:) st)
+    popVal    = modifyTopFrame $ proc ((), fr) -> do
+        (v, vs') <- pop -< (fromString "Cannot pop from and empty value stack.",
+            view frVals fr)
+        returnA -< (v, set frVals vs' fr)
 
-pop :: (ArrowChoice c, ArrowState s c, ArrowFail e c, IsString e)
-    => (s -> [a]) -> ([a] -> s -> s) -> String -> c () a
-pop viewlens setlens msg = modify $ proc ((), st) -> case viewlens st of
-    []   -> fail -< fromString msg
-    x:xs -> returnA -< (x, setlens xs st)
+    pushFr    = modifyTopClos $ proc (fr, cl) ->
+        returnA -< ((), over closFrs (fr:) cl)
 
-replace :: (ArrowState s c) => (a -> s -> s) -> c a ()
-replace setlens = modify $ proc (new, st) -> returnA -< ((), setlens new st)
+    popFr     = modifyTopClos $ proc ((), cl) -> do
+        (fr, frs') <- pop -< (fromString
+            "Cannot pop from an empty frame stack.", view closFrs cl)
+        returnA -< (fr, set closFrs frs' cl)
 
-lookup :: (ArrowChoice c, ArrowState s c, ArrowFail e c, IsString e, Ord k,
-    Show k) => (s -> M.Map k v) -> (String -> String) -> c k v
-lookup viewlens msgF = proc k -> do
-    st <- get -< ()
-    case M.lookup k (viewlens st) of
+    pushClos  = modify $ proc (cl, st) ->
+        returnA -< ((), over closures (cl:) st)
+
+    popClos   = modify $ proc ((), st) -> do
+        (cl, cls') <- pop -< (fromString
+            "Cannot pop from an empty closure stack.", view closures st)
+        returnA -< (cl, set closures cls' st)
+
+    getLocal  = modifyTopClos $ proc (var, cl) -> do
+        v <- lookup -< (fromString $ printf "Variable %s not in scope" var,
+                        var, view closVars cl)
+        returnA -< (v, cl)
+
+    setLocal  = modifyTopClos $ proc ((var, v), cl) ->
+        returnA -< ((), over closVars (M.insert var v) cl)
+
+    setFuncs  = modify $ proc (newFuncs, st) ->
+        returnA -< ((), set funcs newFuncs st)
+
+    getFunc   = modify $ proc (name, st) -> do
+        func <- lookup -< (fromString $ printf "No function %s in module" name,
+                        name, view funcs st)
+        returnA -< (func, st)
+
+modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v fd) c, ArrowFail e c,
+    IsString e) => c (x, Frame v fd) (y, Frame v fd) -> c x y
+modifyTopFrame f = modifyTopClos $ proc (x, cl) -> case view closFrs cl of
+    []      -> fail -< fromString "Tried to edit an empty frame stack."
+    fr:frs  -> do
+        (y, fr') <- f -< (x, fr)
+        returnA -< (y, set closFrs (fr':frs) cl)
+
+modifyTopClos :: (ArrowChoice c, ArrowState (WasmState v fd) c, ArrowFail e c,
+    IsString e) => c (x, Closure v fd) (y, Closure v fd) -> c x y
+modifyTopClos f = modify $ proc (x, st) -> case view closures st of
+    []     -> fail -< fromString "Tried to edit an empty closure stack."
+    cl:cls -> do
+        (y, cl') <- f -< (x, cl)
+        returnA -< (y, set closures (cl':cls) st)
+
+pop :: (ArrowChoice c, ArrowFail e c, IsString e)
+    => c (e, [a]) (a, [a])
+pop = proc (msg, list) -> case list of
+    []   -> fail -< msg
+    x:xs -> returnA -< (x, xs)
+
+lookup :: (ArrowChoice c, ArrowFail e c, IsString e, Ord k,
+    Show k) => c (e, k, M.Map k v) v
+lookup = proc (msg, k, mp) -> case M.lookup k mp of
         Just v  -> returnA -< v
-        Nothing -> fail -< fromString $ msgF (show k)
+        Nothing -> fail -< msg
