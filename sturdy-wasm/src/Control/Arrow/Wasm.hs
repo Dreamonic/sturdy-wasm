@@ -12,13 +12,13 @@ module Control.Arrow.Wasm
     , closVars
     , closFrs
     , ArrowWasm
-    , pushV
-    , pushManyV
-    , popV
-    , clearV
-    , pushF
-    , popF
-    , setLocals
+    , pushVal
+    , pushVals
+    , popVal
+    , pushFr
+    , popFr
+    , pushClos
+    , popClos
     , getLocal
     , setLocal
     , setFuncs
@@ -41,7 +41,7 @@ data Closure v fd = Closure { _closVars :: M.Map String v
 makeLenses ''Frame
 makeLenses ''Closure
 
-class (ArrowChoice c, Profunctor c) => Arr owWasm v fd c | c -> v, c -> fd where
+class (ArrowChoice c, Profunctor c) => ArrowWasm v fd c | c -> v, c -> fd where
     pushVal :: c v ()
     pushVals :: c [v] ()
     pushVals = proc x -> case x of

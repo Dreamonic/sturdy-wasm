@@ -2,7 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
 
-module Interp.Shared.GenericInterpreter
+module Interp.Shared.GenericInterpreterAlt
 (
 ) where
 
@@ -11,20 +11,18 @@ import Control.Arrow
 import Control.Arrow.Trans
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Lens hiding (Const)
 
 import Syntax
 import Types
-import Control.Arrow.Wasm
 
-class (Arrow c) => IsVal v fd c | c -> fd, c -> v where
+class (Arrow c) => IsVal v c | c -> v where
+    next :: c () Instr
     const :: c WasmVal v
-    block :: c ([WasmType], [Instr]) (Frame v fd)
-    loop :: c ([WasmType], [Instr]) (Frame v fd)
+    block :: c ([WasmType], [Instr]) ()
+    loop :: c ([WasmType], [Instr]) ()
     binary :: c (WasmType, BinOpInstr, v, v) v
     unary :: c (WasmType, UnOpInstr, v) v
     compare :: c (WasmType, RelOpInstr, v, v) v
-    br :: c Int [Instr]
+    br :: c Int ()
     onExit :: c () ()
     if_ :: c x z -> c y z -> c (x, y) z
-    call :: c Func ()
