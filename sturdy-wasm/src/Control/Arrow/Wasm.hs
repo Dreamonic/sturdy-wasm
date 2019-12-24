@@ -14,15 +14,16 @@ module Control.Arrow.Wasm
     , closFrs
     , ArrowWasm
     , pushVal
-    , pushVals
     , popVal
     , getVals
     , nextInstr
     , putInstr
     , pushFr
     , popFr
+    , hasFr
     , pushClos
     , popClos
+    , hasClos
     , getLocal
     , setLocal
     , setFuncs
@@ -59,9 +60,11 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     nextInstr :: c () (Maybe Instr)
     putInstr :: c Instr ()
     pushFr :: c (Frame v) ()
-    popFr :: c () (Maybe (Frame v))
+    popFr :: c () (Frame v)
+    hasFr :: c () Bool
     pushClos :: c (Closure v) ()
-    popClos :: c () (Maybe (Closure v))
+    popClos :: c () (Closure v)
+    hasClos :: c () Bool
     getLocal :: c String v
     setLocal :: c (String, v) ()
     setFuncs :: c (M.Map String Func) ()

@@ -41,18 +41,18 @@ deriving instance (ArrowChoice c, Profunctor c)
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     => ArrowWasm v (WasmT v c) where
-    pushVal   = modifyTopFrame $ proc (v, fr) ->
+    pushVal = modifyTopFrame $ proc (v, fr) ->
         returnA -< ((), over frVals (v:) fr)
 
-    popVal    = modifyTopFrame $ proc ((), fr) -> do
+    popVal = modifyTopFrame $ proc ((), fr) -> do
         (v, vs') <- pop -< (fromString "Cannot pop from and empty value stack.",
             view frVals fr)
         returnA -< (v, set frVals vs' fr)
 
-    pushFr    = modifyTopClos $ proc (fr, cl) ->
+    pushFr = modifyTopClos $ proc (fr, cl) ->
         returnA -< ((), over closFrs (fr:) cl)
 
-    popFr     = modifyTopClos $ proc ((), cl) -> do
+    popFr = modifyTopClos $ proc ((), cl) -> do
         (fr, frs') <- pop -< (fromString
             "Cannot pop from an empty frame stack.", view closFrs cl)
         returnA -< (fr, set closFrs frs' cl)
@@ -60,23 +60,23 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     pushClos  = modify $ proc (cl, st) ->
         returnA -< ((), over closures (cl:) st)
 
-    popClos   = modify $ proc ((), st) -> do
+    popClos = modify $ proc ((), st) -> do
         (cl, cls') <- pop -< (fromString
             "Cannot pop from an empty closure stack.", view closures st)
         returnA -< (cl, set closures cls' st)
 
-    getLocal  = modifyTopClos $ proc (var, cl) -> do
+    getLocal = modifyTopClos $ proc (var, cl) -> do
         v <- lookup -< (fromString $ printf "Variable %s not in scope" var,
                         var, view closVars cl)
         returnA -< (v, cl)
 
-    setLocal  = modifyTopClos $ proc ((var, v), cl) ->
+    setLocal = modifyTopClos $ proc ((var, v), cl) ->
         returnA -< ((), over closVars (M.insert var v) cl)
 
-    setFuncs  = modify $ proc (newFuncs, st) ->
+    setFuncs = modify $ proc (newFuncs, st) ->
         returnA -< ((), set funcs newFuncs st)
 
-    getFunc   = modify $ proc (name, st) -> do
+    getFunc = modify $ proc (name, st) -> do
         func <- lookup -< (fromString $ printf "No function %s in module" name,
                         name, view funcs st)
         returnA -< (func, st)
