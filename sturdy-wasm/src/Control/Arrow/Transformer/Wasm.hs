@@ -27,20 +27,20 @@ import Control.Arrow.Transformer.State
 import Syntax
 import Control.Arrow.Wasm
 
-data WasmState v fd = WasmState { _closures :: [Closure v fd]
-                                , _funcs :: M.Map String Func }
+data WasmState v = WasmState { _closures :: [Closure v]
+                             , _funcs :: M.Map String Func }
 
 makeLenses ''WasmState
 
-newtype WasmT v fd c x y = WasmT (StateT (WasmState v fd) c x y)
+newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
               ArrowRun, ArrowFail e)
 
 deriving instance (ArrowChoice c, Profunctor c)
-    => ArrowState (WasmState v fd) (WasmT v fd c)
+    => ArrowState (WasmState v) (WasmT v c)
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
-    => ArrowWasm v fd (WasmT v fd c) where
+    => ArrowWasm v (WasmT v c) where
     pushVal   = modifyTopFrame $ proc (v, fr) ->
         returnA -< ((), over frVals (v:) fr)
 
@@ -81,16 +81,16 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
                         name, view funcs st)
         returnA -< (func, st)
 
-modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v fd) c, ArrowFail e c,
-    IsString e) => c (x, Frame v fd) (y, Frame v fd) -> c x y
+modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c (x, Frame v) (y, Frame v) -> c x y
 modifyTopFrame f = modifyTopClos $ proc (x, cl) -> case view closFrs cl of
     []      -> fail -< fromString "Tried to edit an empty frame stack."
     fr:frs  -> do
         (y, fr') <- f -< (x, fr)
         returnA -< (y, set closFrs (fr':frs) cl)
 
-modifyTopClos :: (ArrowChoice c, ArrowState (WasmState v fd) c, ArrowFail e c,
-    IsString e) => c (x, Closure v fd) (y, Closure v fd) -> c x y
+modifyTopClos :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c (x, Closure v) (y, Closure v) -> c x y
 modifyTopClos f = modify $ proc (x, st) -> case view closures st of
     []     -> fail -< fromString "Tried to edit an empty closure stack."
     cl:cls -> do
