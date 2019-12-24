@@ -1,16 +1,26 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module Interp.Shared.GenericInterpreter
-(
-) where
+    ( IsVal
+    , const
+    , binary
+    , unary
+    , compare
+    , br
+    , onExit
+    , if_
+    , call
+    , interp
+    , step
+    ) where
 
 import Prelude hiding (compare, const, id, fail)
 import Data.String
 import Control.Category
 import Control.Arrow hiding (loop)
-import Control.Arrow.Trans
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 
@@ -39,14 +49,19 @@ interp = fix $ \interp' -> proc () -> do
             step -< i
             interp' -< ()
         Nothing -> do
-            tryFr <- popFr -< ()
-            case tryFr of
-                Just _  -> interp' -< ()
-                Nothing -> do
-                    tryClos <- popClos -< ()
-                    case tryClos of
-                        Just _ -> interp' -< ()
-                        Nothing -> getVals -< ()
+            onExit -< ()
+            bFr <- hasFr -< ()
+            if bFr
+                then do
+                    popFr -< ()
+                    interp' -< ()
+                else do
+                    bClos <- hasClos -< ()
+                    if bClos
+                        then do
+                            popClos -< ()
+                            interp' -< ()
+                        else getVals -< ()
 
 step :: CanInterp v e c => c Instr ()
 step = proc i -> case i of
