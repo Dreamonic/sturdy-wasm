@@ -14,4 +14,4 @@ type ExecType = String -> [WasmVal] -> WasmModule -> Either String [WasmVal]
 --      using the String of their name as a key.
 funcMapFromModule :: WasmModule -> M.Map String Func
 funcMapFromModule m = let fs = modFuncs m
-                      in  M.fromList (zip (map fName fs) fs)
+                      in  M.fromList (zip (fuName <$> fs) fs)

@@ -6,11 +6,12 @@ module Syntax
     , Param(..)
     , getName
     , getValue
-    , Result(..)
-    , getResult
     , Signedness(..)
     , Func(..)
-    , fName
+    , fuName
+    , fuParams
+    , fuRty
+    , fuInstrs
     , WasmModule(..)
     , modFuncs
     ) where
@@ -54,11 +55,9 @@ data RelOpInstr
 data Param = Param { getName :: String, getValue :: WasmType }
     deriving (Show, Eq)
 
-data Result = Result { getResult :: WasmType } deriving (Show, Eq)
-
 data Signedness = Signed | Unsigned deriving (Show, Eq)
 
-data Func = Func { fName :: String, fParams :: [Param], fRes :: [Result],
-                   fIs :: [Instr] } deriving (Show, Eq)
+data Func = Func { fuName :: String, fuParams :: [Param], fuRty :: [WasmType],
+                   fuInstrs :: [Instr] } deriving (Show, Eq)
 
 data WasmModule = WasmModule { modFuncs :: [Func] } deriving (Show, Eq)

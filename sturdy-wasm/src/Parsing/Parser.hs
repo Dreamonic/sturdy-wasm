@@ -49,7 +49,7 @@ parseBlock = do
   t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
-  return $ Block (fmap (\(Result x) -> x) t) instr
+  return $ Block t instr
 
 parseLoop :: Parser Instr
 parseLoop = do
@@ -71,7 +71,7 @@ parseIf = do
   keyword "else"
   instrF <- many $ parseInstruction
   keyword "end"
-  return $ If (fmap (\(Result x) -> x) t) instrT instrF
+  return $ If t instrT instrF
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
@@ -169,11 +169,11 @@ param = parens $ do
   typ   <- parseType
   return (Param idstr typ)
 
-parseResultType :: Parser Result
+parseResultType :: Parser WasmType
 parseResultType = parens $ do
   keyword "result"
   typ   <- parseType
-  return (Result typ)
+  return typ
 
 
 function :: Parser Func

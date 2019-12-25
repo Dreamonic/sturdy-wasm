@@ -4,7 +4,8 @@
 {-# LANGUAGE Arrows #-}
 
 module Control.Arrow.Wasm
-    ( Frame(..)
+    ( FrameKind(..)
+    , Frame(..)
     , frVals
     , frInstrs
     , frRty
@@ -30,6 +31,8 @@ module Control.Arrow.Wasm
     , getFunc
     , block
     , loop
+    , makeClos
+    , popNVals
     ) where
 
 import Control.Arrow hiding (loop)
@@ -46,6 +49,12 @@ data Frame v = Frame { _frVals :: [v]
                      , _frInstrs :: [Instr]
                      , _frRty :: [WasmType]
                      , _frKind :: FrameKind }
+
+blockFrame :: [WasmType] -> [Instr] -> Frame v
+blockFrame rtys is = Frame [] is rtys BlockK
+
+loopFrame :: [WasmType] -> [Instr] -> Frame v
+loopFrame rtys is = Frame [] is rtys (LoopK is)
 
 data Closure v = Closure { _closVars :: M.Map String v
                          , _closFrs :: [Frame v] }
@@ -71,7 +80,19 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     getFunc :: c String Func
 
 block :: ArrowWasm v c => c ([WasmType], [Instr]) ()
-block = proc (rtys, is) -> pushFr -< (Frame [] is rtys BlockK)
+block = proc (rtys, is) -> pushFr -< blockFrame rtys is
 
 loop :: ArrowWasm v c => c ([WasmType], [Instr]) ()
-loop = proc (rtys, is) -> pushFr -< (Frame [] is rtys (LoopK is))
+loop = proc (rtys, is) -> pushFr -< loopFrame rtys is
+
+makeClos :: Func -> [v] -> Closure v
+makeClos f vs = let m = M.fromList $ zip (getName <$> (fuParams f)) vs
+                in  Closure m [blockFrame (fuRty f) (fuInstrs f)]
+
+popNVals :: ArrowWasm v c => c Int [v]
+popNVals = proc n -> if n <= 0
+    then returnA -< []
+    else do
+        v <- popVal -< ()
+        vs <- popNVals -< n - 1
+        returnA -< v:vs
