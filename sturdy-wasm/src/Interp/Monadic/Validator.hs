@@ -283,14 +283,14 @@ checkLabel labels results ops' = do
 
 -- | Validates a single function
 checkFunc :: Func -> M ()
-checkFunc (Func _ params results instr) = do
-    let params' = [(name, val) | (Param name val) <- params]
-    let results' = [t | (Result t) <- results]
+checkFunc f = do
+    let params' = [(name, val) | (Param name val) <- fuParams f]
+    let rty = fuRty f
     forM_ params' $ uncurry pushLocal
-    pushCtrlM results' results'
-    checkSeqM instr
+    pushCtrlM rty rty
+    checkSeqM (fuInstrs f)
     popCtrlM
-    replicateM_ (length params) popLocal
+    replicateM_ (length params') popLocal
 
 -- | Applies given context on state output function and prints the result
 printRes :: M t -> Context -> IO ()

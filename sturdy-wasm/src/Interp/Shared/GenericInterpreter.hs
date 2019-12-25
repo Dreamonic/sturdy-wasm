@@ -49,10 +49,10 @@ interp = fix $ \interp' -> proc () -> do
             step -< i
             interp' -< ()
         Nothing -> do
-            onExit -< ()
             bFr <- hasFr -< ()
             if bFr
                 then do
+                    onExit -< ()
                     popFr -< ()
                     interp' -< ()
                 else do

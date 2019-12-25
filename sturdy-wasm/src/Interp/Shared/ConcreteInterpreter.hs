@@ -22,6 +22,7 @@ import Control.Arrow.Trans
 import Control.Arrow.Fix
 import Control.Arrow.Transformer.State
 import Control.Arrow.Transformer.Concrete.Failure
+import Control.Lens hiding (Const, op)
 
 import Interp.Shared.GenericInterpreter
 import Control.Arrow.Wasm
@@ -60,10 +61,23 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
 
     br = proc n -> case n of
         0 -> do
-            returnA -< () -- TODO implement Br 0
+            fr <- popFr -< ()
+            case view frKind fr of
+                BlockK   -> pushFr -< set frInstrs [] fr
+                LoopK is -> pushFr -< set frInstrs is fr
         _ -> do
             popFr -< ()
             putInstr -< Br (n - 1)
+
+    onExit = id
+
+    if_ = proc (v, rtys, ifBr, elBr) -> if wasmToBool v
+        then block -< (rtys, ifBr)
+        else block -< (rtys, elBr)
+
+    call = proc f -> do
+        vs <- popNVals -< length (fuParams f)
+        pushClos -< makeClos f vs
 
 checkType :: (ArrowChoice c, ArrowFail e c, IsString e)
     => c (WasmVal, WasmType) ()

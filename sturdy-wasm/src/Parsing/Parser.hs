@@ -48,7 +48,11 @@ parseBlock = do
   keyword "block"
   instr <- parseBody
   keyword "end"
+<<<<<<< HEAD
   return $ Block [] instr
+=======
+  return $ Block t instr
+>>>>>>> d38db93... Implement br, onExit, if_ and call for Concrete.
 
 parseLoop :: Parser Instr
 parseLoop = do
@@ -70,7 +74,7 @@ parseIf = do
   keyword "else"
   instrF <- many $ parseInstruction
   keyword "end"
-  return $ If (fmap (\(Result x) -> x) t) instrT instrF
+  return $ If t instrT instrF
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
@@ -168,11 +172,11 @@ param = parens $ do
   typ   <- parseType
   return (Param idstr typ)
 
-parseResultType :: Parser Result
+parseResultType :: Parser WasmType
 parseResultType = parens $ do
   keyword "result"
   typ   <- parseType
-  return (Result typ)
+  return typ
 
 
 function :: Parser Func
