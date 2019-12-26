@@ -60,8 +60,8 @@ parseLoop = do
 
 parseBranch :: Parser Instr
 parseBranch =
-  (keyword "br" >> return Br <*> integer)
-  <|> (keyword "br_if" >> return BrIf <*> integer)
+  (keyword "br" >> return (Br . fromIntegral) <*> integer)
+  <|> (keyword "br_if" >> return (BrIf . fromIntegral) <*> integer)
 
 parseIf :: Parser Instr
 parseIf = do

@@ -21,8 +21,8 @@ import Types
 data Instr
     = Const WasmVal
     | Block [WasmType] [Instr]
-    | Br Integer
-    | BrIf Integer
+    | Br Int
+    | BrIf Int
     | If [WasmType] [Instr] [Instr]
     | Loop [WasmType] [Instr]
     | Call String

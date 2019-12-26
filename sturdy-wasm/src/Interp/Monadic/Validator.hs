@@ -217,15 +217,13 @@ checkM e = case e of
         checkLabel t t ops'
         forM_ (known t) pushM
 
-    Br levels -> do
-        let n = fromInteger levels
+    Br n -> do
         failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
         frame <- peekCtrlM n
         forM_ (known $ labels frame) popM
         setUnreachableM
 
-    BrIf levels -> do
-        let n = fromInteger levels
+    BrIf n -> do
         failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
         popM $ Actual I32
         frame <- peekCtrlM n

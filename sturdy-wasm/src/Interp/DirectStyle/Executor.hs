@@ -39,7 +39,7 @@ data AdminInstr =
   | Invoke Closure
   | Trapping String {- Trap with error message -}
   | Returning (Stack WasmVal)
-  | Breaking Integer (Stack WasmVal)
+  | Breaking Int (Stack WasmVal)
   | Label Int [Instr] Code
   | Frame Frame Code
   deriving (Show, Eq)
