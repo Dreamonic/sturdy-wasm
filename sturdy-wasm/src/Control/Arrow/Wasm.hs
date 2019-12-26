@@ -27,14 +27,17 @@ module Control.Arrow.Wasm
     , hasClos
     , getLocal
     , setLocal
-    , setFuncs
     , getFunc
+    , loadModule
     , block
     , loop
     , makeClos
     , popNVals
+    , pushVals
     ) where
 
+import Prelude hiding (id)
+import Control.Category
 import Control.Arrow hiding (loop)
 import Data.Profunctor
 import qualified Data.Map as M
@@ -42,6 +45,7 @@ import Control.Lens.TH
 
 import Syntax
 import Types
+import Control.Arrow.Chain
 
 data FrameKind = BlockK | LoopK [Instr]
 
@@ -76,8 +80,8 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     hasClos :: c () Bool
     getLocal :: c String v
     setLocal :: c (String, v) ()
-    setFuncs :: c (M.Map String Func) ()
     getFunc :: c String Func
+    loadModule :: c WasmModule ()
 
 block :: ArrowWasm v c => c ([WasmType], [Instr]) ()
 block = proc (rtys, is) -> pushFr -< blockFrame rtys is
@@ -96,3 +100,6 @@ popNVals = proc n -> if n <= 0
         v <- popVal -< ()
         vs <- popNVals -< n - 1
         returnA -< v:vs
+
+pushVals :: ArrowWasm v c => c [v] ()
+pushVals = mapA_ pushVal

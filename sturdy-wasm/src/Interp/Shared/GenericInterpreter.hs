@@ -33,34 +33,36 @@ class Arrow c => IsVal v c | c -> v where
     binary :: c (WasmType, BinOpInstr, v, v) v
     unary :: c (WasmType, UnOpInstr, v) v
     compare :: c (WasmType, RelOpInstr, v, v) v
-    br :: c Integer ()
+    br :: c Int ()
     onExit :: c () ()
     if_ :: c (v, [WasmType], [Instr], [Instr]) ()
     call :: c Func ()
 
 type CanInterp v e c = (ArrowChoice c, IsVal v c, ArrowWasm v c, ArrowFail e c,
-    IsString e, ArrowFix (c () [v]))
+    IsString e)
 
 interp :: CanInterp v e c => c () [v]
-interp = fix $ \interp' -> proc () -> do
+interp = proc () -> do
     next <- nextInstr -< ()
     case next of
         Just i  -> do
             step -< i
-            interp' -< ()
+            interp -< ()
         Nothing -> do
             bFr <- hasFr -< ()
             if bFr
                 then do
                     onExit -< ()
+                    vs <- getVals -< ()
                     popFr -< ()
-                    interp' -< ()
+                    pushVals -< vs
+                    interp -< ()
                 else do
                     bClos <- hasClos -< ()
                     if bClos
                         then do
                             popClos -< ()
-                            interp' -< ()
+                            interp -< ()
                         else getVals -< ()
 
 step :: CanInterp v e c => c Instr ()

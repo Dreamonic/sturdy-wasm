@@ -9,6 +9,7 @@
 
 module Control.Arrow.Transformer.Wasm
 ( WasmT(..)
+, empty
 ) where
 
 import qualified Data.Map as M
@@ -26,11 +27,15 @@ import Control.Arrow.Transformer.State
 
 import Syntax
 import Control.Arrow.Wasm
+import Interp.Util
 
 data WasmState v = WasmState { _closures :: [Closure v]
                              , _funcs :: M.Map String Func }
 
 makeLenses ''WasmState
+
+empty :: WasmState v
+empty = WasmState [] M.empty
 
 newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
@@ -45,9 +50,18 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
         returnA -< ((), over frVals (v:) fr)
 
     popVal = modifyTopFrame $ proc ((), fr) -> do
-        (v, vs') <- pop -< (fromString "Cannot pop from and empty value stack.",
+        (v, vs') <- pop -< (fromString "Cannot pop from an empty value stack.",
             view frVals fr)
         returnA -< (v, set frVals vs' fr)
+
+    getVals = modifyTopFrame $ proc ((), fr) -> returnA -< (view frVals fr, fr)
+
+    nextInstr = modifyTopFrame $ proc ((), fr) -> case view frInstrs fr of
+        []   -> returnA -< (Nothing, fr)
+        i:is -> returnA -< (Just i, set frInstrs is fr)
+
+    putInstr = modifyTopFrame $ proc (i, fr) ->
+        returnA -< ((), over frInstrs (i:) fr)
 
     pushFr = modifyTopClos $ proc (fr, cl) ->
         returnA -< ((), over closFrs (fr:) cl)
@@ -57,6 +71,9 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             "Cannot pop from an empty frame stack.", view closFrs cl)
         returnA -< (fr, set closFrs frs' cl)
 
+    hasFr = modifyTopClos $ proc ((), cl) ->
+        returnA -< (null (view closFrs cl), cl)
+
     pushClos  = modify $ proc (cl, st) ->
         returnA -< ((), over closures (cl:) st)
 
@@ -64,6 +81,9 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
         (cl, cls') <- pop -< (fromString
             "Cannot pop from an empty closure stack.", view closures st)
         returnA -< (cl, set closures cls' st)
+
+    hasClos = modify $ proc ((), st) ->
+        returnA -< (null (view closures st), st)
 
     getLocal = modifyTopClos $ proc (var, cl) -> do
         v <- lookup -< (fromString $ printf "Variable %s not in scope" var,
@@ -73,13 +93,13 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     setLocal = modifyTopClos $ proc ((var, v), cl) ->
         returnA -< ((), over closVars (M.insert var v) cl)
 
-    setFuncs = modify $ proc (newFuncs, st) ->
-        returnA -< ((), set funcs newFuncs st)
-
     getFunc = modify $ proc (name, st) -> do
         func <- lookup -< (fromString $ printf "No function %s in module" name,
                         name, view funcs st)
         returnA -< (func, st)
+
+    loadModule = modify $ proc (mdl, st) ->
+        returnA -< ((), set funcs (funcMapFromModule mdl) st)
 
 modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
     IsString e) => c (x, Frame v) (y, Frame v) -> c x y

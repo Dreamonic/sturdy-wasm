@@ -5,30 +5,35 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Interp.Shared.ConcreteInterpreter
-    (
+    ( execFunc
     ) where
 
 import Prelude hiding (compare, const, id, fail)
 import Data.String
 import Text.Printf
 import Data.Profunctor
-import Control.Category
+import Control.Category hiding ((.))
 import Control.Arrow
 import Control.Arrow.State
 import Control.Arrow.Fail
-import Control.Arrow.Trans
+import qualified Control.Arrow.Trans as Trans
 import Control.Arrow.Fix
+import Control.Arrow.Trans
 import Control.Arrow.Transformer.State
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Lens hiding (Const, op)
+import Data.Concrete.Error
 
 import Interp.Shared.GenericInterpreter
 import Control.Arrow.Wasm
 import Control.Arrow.Transformer.Wasm
+import Control.Arrow.Chain
 import Types
 import Syntax
+import Interp.Util
 
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e,
@@ -59,15 +64,14 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         case op of
             Eql -> returnA -< boolToWasm (v1 == v2)
 
-    br = proc n -> case n of
-        0 -> do
-            fr <- popFr -< ()
-            case view frKind fr of
-                BlockK   -> pushFr -< set frInstrs [] fr
-                LoopK is -> pushFr -< set frInstrs is fr
-        _ -> do
-            popFr -< ()
-            putInstr -< Br (n - 1)
+    br = proc n -> do
+        vs <- getVals -< ()
+        doN popFr -< ((), n)
+        pushVals -< vs
+        fr <- popFr -< ()
+        case view frKind fr of
+            BlockK   -> pushFr -< set frInstrs [] fr
+            LoopK is -> pushFr -< set frInstrs is fr
 
     onExit = id
 
@@ -85,3 +89,17 @@ checkType = proc (v, ty) -> if ofType v ty
     then returnA -< ()
     else fail -< fromString $ printf
         "Expected type %s but got %s." (show ty) (show (getType v))
+
+instance ArrowRun c => ArrowRun (ConcreteT c) where
+    type Run (ConcreteT c) x y = Run c x y
+    run = Trans.run . runConcreteT
+
+execFunc :: ExecType
+execFunc name vs mdl =
+    let comp = proc () -> do
+            loadModule -< mdl
+            f <- getFunc -< name
+            pushClos -< makeClos f vs
+            interp -< ()
+        compC = comp :: ConcreteT (WasmT WasmVal (FailureT String (->))) () [WasmVal]
+    in toEither (snd <$> (Trans.run compC) (empty, ()))
