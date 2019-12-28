@@ -14,7 +14,6 @@ module Interp.Shared.GenericInterpreter
     , if_
     , call
     , interp
-    , step
     ) where
 
 import Prelude hiding (compare, const, id, fail)
@@ -35,7 +34,7 @@ class Arrow c => IsVal v c | c -> v where
     compare :: c (WasmType, RelOpInstr, v, v) v
     br :: c Int ()
     onExit :: c () ()
-    if_ :: c (v, [WasmType], [Instr], [Instr]) ()
+    if_ :: c x z -> c y z -> c (v, x, y) z
     call :: c Func ()
 
 type CanInterp v e c = (ArrowChoice c, IsVal v c, ArrowWasm v c, ArrowFail e c,
@@ -49,21 +48,23 @@ interp = proc () -> do
             step -< i
             interp -< ()
         Nothing -> do
-            bFr <- hasFr -< ()
-            if bFr
+            canPopFr <- hasMtplFr -< ()
+            if canPopFr
                 then do
                     onExit -< ()
-                    vs <- getVals -< ()
+                    vs <- popVals -< ()
                     popFr -< ()
                     pushVals -< vs
                     interp -< ()
                 else do
-                    bClos <- hasClos -< ()
-                    if bClos
+                    canPopClos <- hasMtplClos -< ()
+                    if canPopClos
                         then do
+                            vs <- popVals -< ()
                             popClos -< ()
+                            pushVals -< vs
                             interp -< ()
-                        else getVals -< ()
+                        else popVals -< ()
 
 step :: CanInterp v e c => c Instr ()
 step = proc i -> case i of
@@ -77,11 +78,13 @@ step = proc i -> case i of
 
     Br n -> br -< n
 
-    BrIf n -> putInstr -< If [] [Br n] []
+    BrIf n -> do
+        v <- popVal -< ()
+        if_ br returnA -< (v, n, ())
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
-        if_ -< (v, rtys, ifBr, elBr)
+        if_ block block -< (v, (rtys, ifBr), (rtys, elBr))
 
     Call name -> do
         f <- getFunc -< name
@@ -96,8 +99,8 @@ step = proc i -> case i of
         setLocal -< (var, v)
 
     LocalTee var -> do
-        putInstr -< LocalSet var
         putInstr -< LocalGet var
+        putInstr -< LocalSet var
 
     Binary ty op -> do
         v1 <- popVal -< ()

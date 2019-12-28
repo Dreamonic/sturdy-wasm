@@ -35,6 +35,8 @@ import Types
 import Syntax
 import Interp.Util
 
+import qualified Debug.Trace as Debug
+
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e,
         ArrowState s, ArrowWasm v)
@@ -50,8 +52,9 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         checkType -< (v1, ty)
         checkType -< (v2, ty)
         case op of
-            Add -> returnA -< v1 + v2
-            Mul -> returnA -< v1 * v2
+            Add -> returnA -< v2 + v1
+            Sub -> returnA -< v2 - v1
+            Mul -> returnA -< v2 * v1
 
     unary = proc (ty, op, v) -> do
         checkType -< (v, ty)
@@ -62,10 +65,10 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         checkType -< (v1, ty)
         checkType -< (v2, ty)
         case op of
-            Eql -> returnA -< boolToWasm (v1 == v2)
+            Eql -> returnA -< boolToWasm (v2 == v1)
 
     br = proc n -> do
-        vs <- getVals -< ()
+        vs <- popVals -< ()
         doN popFr -< ((), n)
         pushVals -< vs
         fr <- popFr -< ()
@@ -75,9 +78,9 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
 
     onExit = id
 
-    if_ = proc (v, rtys, ifBr, elBr) -> if wasmToBool v
-        then block -< (rtys, ifBr)
-        else block -< (rtys, elBr)
+    if_ f g = proc (v, x, y) -> if wasmToBool v
+        then f -< x
+        else g -< y
 
     call = proc f -> do
         vs <- popNVals -< length (fuParams f)
@@ -100,6 +103,8 @@ execFunc name vs mdl =
             loadModule -< mdl
             f <- getFunc -< name
             pushClos -< makeClos f vs
-            interp -< ()
-        compC = comp :: ConcreteT (WasmT WasmVal (FailureT String (->))) () [WasmVal]
-    in toEither (snd <$> (Trans.run compC) (empty, ()))
+            (interp :: ConcreteT
+                           (WasmT WasmVal
+                               (FailureT String
+                                   (->))) () [WasmVal]) -< ()
+    in  toEither (snd <$> (Trans.run comp) (empty, ()))

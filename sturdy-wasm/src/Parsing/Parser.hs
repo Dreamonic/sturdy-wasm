@@ -29,6 +29,7 @@ parseInstruction
   <|> parseIf
   <|> parseGetLocal
   <|> parseSetLocal
+  <|> parseTeeLocal
   <|> parseCall
   <|> parseConst
   <|> parseBinaryInstr
@@ -82,6 +83,11 @@ parseSetLocal :: Parser Instr
 parseSetLocal = do
   keyword "set_local"
   return LocalSet <*> identifier
+
+parseTeeLocal :: Parser Instr
+parseTeeLocal = do
+  keyword "tee_local"
+  return LocalTee <*> identifier
 
 parseConst :: Parser Instr
 parseConst = try $ do

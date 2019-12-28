@@ -33,13 +33,11 @@ module Interp.Monadic.ExecutorLib
     ) where
 
 import qualified Data.Map as Map
-import Debug.Trace
 import Control.Lens
 
 import Syntax
 import Types
 import Interp.Util
-import Debug.Trace
 
 data ModInst =
     EmptyInst
@@ -221,7 +219,7 @@ push v = Env (\config -> (Right (), (pushToInnerStack v config)))
 
 -- |    Pop a single WasmVal from the value stack.
 pop :: MExecutor WasmVal
-pop = Env (\config -> trace (show config) (popFromInnerStack config))
+pop = Env (\config -> popFromInnerStack config)
 
 -- |    Put a value into the local environment
 setVar :: String -> WasmVal -> MExecutor ()

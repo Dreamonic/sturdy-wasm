@@ -54,7 +54,8 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             view frVals fr)
         returnA -< (v, set frVals vs' fr)
 
-    getVals = modifyTopFrame $ proc ((), fr) -> returnA -< (view frVals fr, fr)
+    popVals = modifyTopFrame $ proc ((), fr) ->
+        returnA -< (view frVals fr, set frVals [] fr)
 
     nextInstr = modifyTopFrame $ proc ((), fr) -> case view frInstrs fr of
         []   -> returnA -< (Nothing, fr)
@@ -71,8 +72,8 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             "Cannot pop from an empty frame stack.", view closFrs cl)
         returnA -< (fr, set closFrs frs' cl)
 
-    hasFr = modifyTopClos $ proc ((), cl) ->
-        returnA -< (null (view closFrs cl), cl)
+    hasMtplFr = modifyTopClos $ proc ((), cl) ->
+        returnA -< (length (view closFrs cl) > 1, cl)
 
     pushClos  = modify $ proc (cl, st) ->
         returnA -< ((), over closures (cl:) st)
@@ -82,8 +83,8 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             "Cannot pop from an empty closure stack.", view closures st)
         returnA -< (cl, set closures cls' st)
 
-    hasClos = modify $ proc ((), st) ->
-        returnA -< (null (view closures st), st)
+    hasMtplClos = modify $ proc ((), st) ->
+        returnA -< (length (view closures st) > 1, st)
 
     getLocal = modifyTopClos $ proc (var, cl) -> do
         v <- lookup -< (fromString $ printf "Variable %s not in scope" var,

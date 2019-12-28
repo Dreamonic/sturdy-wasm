@@ -32,5 +32,5 @@ doN :: ArrowChoice c => c a b -> c (a, Int) [b]
 doN f = proc (x, n) -> do
     mapA f -< replicate n x
 
-doN_ :: ArrowChoice c => c a () -> c (a, Int) ()
+doN_ :: ArrowChoice c => c a b -> c (a, Int) ()
 doN_ f = doN f >>^ (\_ -> ())
