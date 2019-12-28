@@ -15,7 +15,8 @@ parse = parseWasm wasmModule
 
 allTests :: [ExecType -> SpecWith ()]
 allTests = [testSimpleFunction, testReadLocalVars, testSetLocalVars, testEquals,
-            testEqualsFalse, testBlock, testLoop, testIfElse, testNestedBlocks,
+            testEqualsFalse, testBlock, testBranch, testBranchIfTrue,
+            testBranchIfFalse, testTee, testLoop, testIfElse, testNestedBlocks,
             testFunctionCalls, testEvenOdd]
 
 programSimpleFunction = parse
@@ -74,49 +75,82 @@ programEqualsFalse = parse
     \i32.const 3\n\
     \i32.eq))"
 
-testEqualsFalse execFunc = it "Test equals" $
+testEqualsFalse execFunc = it "Test equals false case" $
     execFunc "$neq" [] programEqualsFalse `shouldBe` (Right [I32Val 0])
 
-
-programBlock =parse
+programBlock = parse
     "(module\n\
-    \(func $foo (param $a i32)\n\
-    \(result i32)\n\
-    \(block\n\
-    \i32.const 2\n\
-    \set_local $a\n\
-    \br 0\n\
-    \i32.const 1\n\
-    \set_local $a\n\
-    \end)\n\
+    \(func $bl (param $a i32) (result i32)\n\
+    \block (result i32)\n\
+    \get_local $a\n\
+    \end))"
+
+testBlock execFunc = it "Test block" $
+    execFunc "$bl" [I32Val 3] programBlock `shouldBe` (Right [I32Val 3])
+
+programBranch = parse
+    "(module\n\
+    \(func $foo (param $a i32) (result i32)\n\
+    \block (result i32)\n\
+        \i32.const 2\n\
+        \set_local $a\n\
+        \br 0\n\
+        \i32.const 1\n\
+        \set_local $a\n\
+    \end\n\
     \get_local $a\n\
     \i32.const 3\n\
     \i32.add))"
 
-testBlock execFunc = it "Test block" $
-    execFunc "$foo" [I32Val 3] programBlock `shouldBe` (Right [I32Val 5])
+testBranch execFunc = it "Test branch" $
+    execFunc "$foo" [I32Val 3] programBranch `shouldBe` (Right [I32Val 5])
 
+programBranchIf = parse
+    "(module\n\
+    \(func $foo (param $a i32) (result i32)\n\
+    \block (result i32)\n\
+        \i32.const 8\n\
+        \get_local $a\n\
+        \br_if 1\n\
+        \i32.const 7\n\
+        \i32.add\n\
+    \end))"
+
+testBranchIfTrue execFunc = it "Test branchIf true case" $
+    execFunc "$foo" [I32Val 1] programBranchIf `shouldBe` (Right [I32Val 8])
+
+testBranchIfFalse execFunc = it "Test branchIf false case" $
+    execFunc "$foo" [I32Val 0] programBranchIf `shouldBe` (Right [I32Val 15])
+
+programTee = parse
+    "(module\n\
+    \(func $foo (param $x i32) (result i32)\n\
+    \get_local $x\n\
+    \i32.const 1\n\
+    \i32.add\n\
+    \tee_local $x))"
+
+testTee execFunc = it "Test setting local variables with tee" $
+    execFunc "$foo" [I32Val 0] programTee `shouldBe` (Right [I32Val 1])
 
 programLoop = parse
     "(module\n\
     \(func $foo (param $x i32) (result i32)\n\
-    \(block\n\
-    \(loop\n\
-        \get_local $x\n\
-        \i32.const 1\n\
-        \i32.add\n\
-        \set_local $x\n\
-        \get_local $x\n\
-        \i32.const 4\n\
-        \i32.eq\n\
-        \br_if 1\n\
-        \br 0\n\
-    \end)\n\
-    \end)\n\
-    \get_local $x\n\
-    \))"
+    \block\n\
+        \loop\n\
+            \get_local $x\n\
+            \i32.const 1\n\
+            \i32.add\n\
+            \tee_local $x\n\
+            \i32.const 4\n\
+            \i32.eq\n\
+            \br_if 1\n\
+            \br 0\n\
+        \end\n\
+    \end\n\
+    \get_local $x))"
 
-testLoop execFunc = it "Loop test" $
+testLoop execFunc = it "Test loop" $
     execFunc "$foo" [I32Val 0] programLoop `shouldBe` (Right [I32Val 4])
 
 programIfElse = parse

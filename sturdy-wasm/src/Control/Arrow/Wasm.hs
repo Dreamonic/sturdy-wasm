@@ -16,15 +16,15 @@ module Control.Arrow.Wasm
     , ArrowWasm
     , pushVal
     , popVal
-    , getVals
+    , popVals
     , nextInstr
     , putInstr
     , pushFr
     , popFr
-    , hasFr
+    , hasMtplFr
     , pushClos
     , popClos
-    , hasClos
+    , hasMtplClos
     , getLocal
     , setLocal
     , getFunc
@@ -69,15 +69,15 @@ makeLenses ''Closure
 class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     pushVal :: c v ()
     popVal :: c () v
-    getVals :: c () [v]
+    popVals :: c () [v]
     nextInstr :: c () (Maybe Instr)
     putInstr :: c Instr ()
     pushFr :: c (Frame v) ()
     popFr :: c () (Frame v)
-    hasFr :: c () Bool
+    hasMtplFr :: c () Bool
     pushClos :: c (Closure v) ()
     popClos :: c () (Closure v)
-    hasClos :: c () Bool
+    hasMtplClos :: c () Bool
     getLocal :: c String v
     setLocal :: c (String, v) ()
     getFunc :: c String Func
@@ -94,12 +94,7 @@ makeClos f vs = let m = M.fromList $ zip (getName <$> (fuParams f)) vs
                 in  Closure m [blockFrame (fuRty f) (fuInstrs f)]
 
 popNVals :: ArrowWasm v c => c Int [v]
-popNVals = proc n -> if n <= 0
-    then returnA -< []
-    else do
-        v <- popVal -< ()
-        vs <- popNVals -< n - 1
-        returnA -< v:vs
+popNVals = (\n -> ((), n)) ^>> doN popVal
 
 pushVals :: ArrowWasm v c => c [v] ()
 pushVals = mapA_ pushVal
