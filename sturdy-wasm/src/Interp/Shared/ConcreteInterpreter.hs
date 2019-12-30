@@ -6,6 +6,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Interp.Shared.ConcreteInterpreter
     ( execFunc
@@ -19,9 +20,8 @@ import Control.Category hiding ((.))
 import Control.Arrow
 import Control.Arrow.State
 import Control.Arrow.Fail
-import qualified Control.Arrow.Trans as Trans
 import Control.Arrow.Fix
-import Control.Arrow.Trans
+import Control.Arrow.Trans as Trans
 import Control.Arrow.Transformer.State
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Lens hiding (Const, op)
@@ -35,13 +35,15 @@ import Types
 import Syntax
 import Interp.Util
 
-import qualified Debug.Trace as Debug
-
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e,
         ArrowState s, ArrowWasm v)
 
 deriving instance ArrowFix (c x y) => ArrowFix (ConcreteT c x y)
+
+instance ArrowRun c => ArrowRun (ConcreteT c) where
+    type Run (ConcreteT c) x y = Run c x y
+    run = Trans.run . runConcreteT
 
 instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
     => IsVal WasmVal (ConcreteT c) where
@@ -86,16 +88,12 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         vs <- popNVals -< length (fuParams f)
         pushClos -< makeClos f vs
 
-checkType :: (ArrowChoice c, ArrowFail e c, IsString e)
+checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
     => c (WasmVal, WasmType) ()
 checkType = proc (v, ty) -> if ofType v ty
     then returnA -< ()
-    else fail -< fromString $ printf
-        "Expected type %s but got %s." (show ty) (show (getType v))
-
-instance ArrowRun c => ArrowRun (ConcreteT c) where
-    type Run (ConcreteT c) x y = Run c x y
-    run = Trans.run . runConcreteT
+    else fail -< printf "Expected type %s but got %s." (show ty)
+        (show (getType v))
 
 execFunc :: ExecType
 execFunc name vs mdl =
