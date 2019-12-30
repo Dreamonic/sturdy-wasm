@@ -4,16 +4,9 @@ module Syntax
     , UnOpInstr(..)
     , RelOpInstr(..)
     , Param(..)
-    , getName
-    , getValue
     , Signedness(..)
     , Func(..)
-    , fuName
-    , fuParams
-    , fuRty
-    , fuInstrs
     , WasmModule(..)
-    , modFuncs
     ) where
 
 import Types

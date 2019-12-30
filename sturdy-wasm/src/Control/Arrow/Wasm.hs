@@ -34,6 +34,9 @@ module Control.Arrow.Wasm
     , makeClos
     , popNVals
     , pushVals
+    , getVals
+    , getFrAt
+    , getTopFr
     ) where
 
 import Prelude hiding (id)
@@ -98,3 +101,20 @@ popNVals = (\n -> ((), n)) ^>> doN popVal
 
 pushVals :: ArrowWasm v c => c [v] ()
 pushVals = mapA_ pushVal
+
+getVals :: ArrowWasm v c => c () [v]
+getVals = proc () -> do
+    vs <- popVals -< ()
+    pushVals -< vs
+    returnA -< vs
+
+getFrAt :: ArrowWasm v c => c Int (Frame v)
+getFrAt = proc n -> do
+    frs <- doN popFr -< ((), n)
+    targetFr <- popFr -< ()
+    pushFr -< targetFr
+    mapA_ pushFr -< frs
+    returnA -< targetFr
+
+getTopFr :: ArrowWasm v c => c () (Frame v)
+getTopFr = (\_ -> 0) ^>> getFrAt
