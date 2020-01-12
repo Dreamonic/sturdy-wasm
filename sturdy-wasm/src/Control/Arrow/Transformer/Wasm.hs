@@ -30,7 +30,7 @@ import Control.Arrow.Wasm
 import Interp.Util
 
 data WasmState v = WasmState { _closures :: [Closure v]
-                             , _funcs :: M.Map String Func }
+                             , _funcs :: M.Map String Func } deriving (Show)
 
 makeLenses ''WasmState
 

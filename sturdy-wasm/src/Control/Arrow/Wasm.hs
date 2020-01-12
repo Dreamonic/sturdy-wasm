@@ -50,12 +50,12 @@ import Syntax
 import Types
 import Control.Arrow.Chain
 
-data FrameKind = BlockK | LoopK [Instr]
+data FrameKind = BlockK | LoopK [Instr] deriving (Show)
 
 data Frame v = Frame { _frVals :: [v]
                      , _frInstrs :: [Instr]
                      , _frRty :: [WasmType]
-                     , _frKind :: FrameKind }
+                     , _frKind :: FrameKind } deriving (Show)
 
 blockFrame :: [WasmType] -> [Instr] -> Frame v
 blockFrame rtys is = Frame [] is rtys BlockK
@@ -64,7 +64,7 @@ loopFrame :: [WasmType] -> [Instr] -> Frame v
 loopFrame rtys is = Frame [] is rtys (LoopK is)
 
 data Closure v = Closure { _closVars :: M.Map String v
-                         , _closFrs :: [Frame v] }
+                         , _closFrs :: [Frame v] } deriving (Show)
 
 makeLenses ''Frame
 makeLenses ''Closure

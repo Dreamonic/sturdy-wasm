@@ -9,11 +9,13 @@
 
 module Interp.Shared.TypeChecker
     (
+        validateFunc
     ) where
 
 import Prelude hiding (compare, const, id, fail)
 import Data.Profunctor
 import Data.String
+import Data.Concrete.Error
 import Text.Printf
 import Control.Category hiding ((.))
 import Control.Arrow
@@ -27,6 +29,7 @@ import Control.Lens hiding (Const, op)
 
 import Types
 import Syntax
+import Interp.Util
 import Interp.Shared.GenericInterpreter
 import Control.Arrow.Wasm
 import Control.Arrow.Transformer.Wasm
@@ -42,7 +45,7 @@ instance ArrowRun c => ArrowRun (CheckerT c) where
     type Run (CheckerT c) x y = Run c x y
     run = Trans.run . runCheckerT
 
-instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
+instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c, ArrowState s c)
     => IsVal WasmType (CheckerT c) where
 
     const = arr getType
@@ -69,11 +72,13 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
     onExit = proc () -> do
         tys <- getVals -< ()
         fr <- getTopFr -< ()
-        mapA_ checkType -< zip (view frRty fr) tys
+        mapA_ checkType -< zip tys (view frRty fr)
 
     if_ f g = proc (ty, x, y) -> do
         checkType -< (ty, I32)
+        state <- get -< ()
         f -< x
+        put -< state
         g -< y -- TODO: this clearly isn't the correct implementation.
 
     call = proc f -> do
@@ -86,3 +91,16 @@ checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
 checkType = proc (actTy, expTy) -> if actTy == expTy
     then returnA -< ()
     else fail -< printf "Expected type %s but got %s." (show expTy) (show actTy)
+
+
+validateFunc :: String -> [WasmType] -> WasmModule -> Either String [WasmType]
+validateFunc name vs mdl =
+    let comp = proc () -> do
+            loadModule -< mdl
+            f <- getFunc -< name
+            pushClos -< makeClos f vs
+            (interp :: CheckerT
+                           (WasmT WasmType
+                               (FailureT String
+                                   (->))) () [WasmType]) -< ()
+    in  toEither (snd <$> (Trans.run comp) (empty, ()))
