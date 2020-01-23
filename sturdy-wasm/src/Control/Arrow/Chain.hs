@@ -6,6 +6,8 @@ module Control.Arrow.Chain
     , mapA_
     , doN
     , doN_
+    , doWhile
+    , doWhile_
     ) where
 
 import Control.Arrow
@@ -34,3 +36,16 @@ doN f = proc (x, n) -> do
 
 doN_ :: ArrowChoice c => c a b -> c (a, Int) ()
 doN_ f = doN f >>^ (\_ -> ())
+
+doWhile :: ArrowChoice c => c a Bool -> c x y -> c (a, x) [y]
+doWhile b f = proc (a, x) -> do
+    continue <- b -< a
+    if continue
+        then do
+            y <- f -< x
+            ys <- doWhile b f -< (a, x)
+            returnA -< y:ys
+        else returnA -< []
+
+doWhile_ :: ArrowChoice c => c a Bool -> c x () -> c (a, x) ()
+doWhile_ b f = doWhile b f >>^ (\_ -> ())

@@ -18,7 +18,7 @@ import Data.String
 import Text.Printf
 import Data.Profunctor
 import Control.Lens
-import Control.Category
+import Control.Category hiding ((.))
 import Control.Arrow
 import Control.Arrow.Trans
 import Control.Arrow.Fail
@@ -54,8 +54,8 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             view frVals fr)
         returnA -< (v, set frVals vs' fr)
 
-    popVals = modifyTopFrame $ proc ((), fr) ->
-        returnA -< (view frVals fr, set frVals [] fr)
+    hasVal = modifyTopFrame $ proc ((), fr) ->
+        returnA -< ((not . null) (view frVals fr), fr)
 
     nextInstr = modifyTopFrame $ proc ((), fr) -> case view frInstrs fr of
         []   -> returnA -< (Nothing, fr)
@@ -72,8 +72,8 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             "Cannot pop from an empty frame stack.", view closFrs cl)
         returnA -< (fr, set closFrs frs' cl)
 
-    hasMtplFr = modifyTopClos $ proc ((), cl) ->
-        returnA -< (length (view closFrs cl) > 1, cl)
+    hasFr = modifyTopClos $ proc ((), cl) ->
+        returnA -< ((not . null) (view closFrs cl), cl)
 
     pushClos  = modify $ proc (cl, st) ->
         returnA -< ((), over closures (cl:) st)
@@ -83,8 +83,8 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
             "Cannot pop from an empty closure stack.", view closures st)
         returnA -< (cl, set closures cls' st)
 
-    hasMtplClos = modify $ proc ((), st) ->
-        returnA -< (length (view closures st) > 1, st)
+    hasClos = modify $ proc ((), st) ->
+        returnA -< ((not . null) (view closures st), st)
 
     getLocal = modifyTopClos $ proc (var, cl) -> do
         v <- lookup -< (fromString $ printf "Variable %s not in scope" var,

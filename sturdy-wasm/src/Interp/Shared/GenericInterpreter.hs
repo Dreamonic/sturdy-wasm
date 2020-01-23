@@ -45,36 +45,35 @@ interp = proc () -> do
     next <- nextInstr -< ()
     case next of
         Just i  -> do
-            step -< i
+            interpInstr -< i
             interp -< ()
         Nothing -> do
-            canPopFr <- hasMtplFr -< ()
-            if canPopFr
+            onExit -< ()
+            vs <- popVals -< ()
+            popFr -< ()
+            continue <- hasFr -< ()
+            if continue
                 then do
-                    onExit -< ()
-                    vs <- popVals -< ()
-                    popFr -< ()
                     pushVals -< vs
                     interp -< ()
                 else do
-                    canPopClos <- hasMtplClos -< ()
-                    if canPopClos
+                    popClos -< ()
+                    continue2 <- hasClos -< ()
+                    if continue2
                         then do
-                            vs <- popVals -< ()
-                            popClos -< ()
                             pushVals -< vs
                             interp -< ()
-                        else popVals -< ()
+                        else returnA -< vs
 
-step :: CanInterp v e c => c Instr ()
-step = proc i -> case i of
+interpInstr :: CanInterp v e c => c Instr ()
+interpInstr = proc i -> case i of
     Const wv -> do
         v <- const -< wv
         pushVal -< v
 
-    Block rtys is -> block -< (rtys, is)
+    Block rtys is -> pushBlock -< (rtys, is)
 
-    Loop rtys is -> loop -< (rtys, is)
+    Loop rtys is -> pushLoop -< (rtys, is)
 
     Br n -> br -< n
 
@@ -84,7 +83,7 @@ step = proc i -> case i of
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
-        if_ block block -< (v, (rtys, ifBr), (rtys, elBr))
+        if_ pushBlock pushBlock -< (v, (rtys, ifBr), (rtys, elBr))
 
     Call name -> do
         f <- getFunc -< name

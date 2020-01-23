@@ -5,7 +5,7 @@
 
 module Control.Arrow.Wasm
     ( FrameKind(..)
-    , Frame(..)
+    , Frame(Frame)
     , frVals
     , frInstrs
     , frRty
@@ -13,25 +13,11 @@ module Control.Arrow.Wasm
     , Closure
     , closVars
     , closFrs
-    , ArrowWasm
-    , pushVal
-    , popVal
-    , popVals
-    , nextInstr
-    , putInstr
-    , pushFr
-    , popFr
-    , hasMtplFr
-    , pushClos
-    , popClos
-    , hasMtplClos
-    , getLocal
-    , setLocal
-    , getFunc
-    , loadModule
-    , block
-    , loop
+    , ArrowWasm(..)
+    , pushBlock
+    , pushLoop
     , makeClos
+    , popVals
     , popNVals
     , pushVals
     , getVals
@@ -41,7 +27,7 @@ module Control.Arrow.Wasm
 
 import Prelude hiding (id)
 import Control.Category
-import Control.Arrow hiding (loop)
+import Control.Arrow
 import Data.Profunctor
 import qualified Data.Map as M
 import Control.Lens.TH
@@ -72,29 +58,32 @@ makeLenses ''Closure
 class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     pushVal :: c v ()
     popVal :: c () v
-    popVals :: c () [v]
+    hasVal :: c () Bool
     nextInstr :: c () (Maybe Instr)
     putInstr :: c Instr ()
     pushFr :: c (Frame v) ()
     popFr :: c () (Frame v)
-    hasMtplFr :: c () Bool
+    hasFr :: c () Bool
     pushClos :: c (Closure v) ()
     popClos :: c () (Closure v)
-    hasMtplClos :: c () Bool
+    hasClos :: c () Bool
     getLocal :: c String v
     setLocal :: c (String, v) ()
     getFunc :: c String Func
     loadModule :: c WasmModule ()
 
-block :: ArrowWasm v c => c ([WasmType], [Instr]) ()
-block = proc (rtys, is) -> pushFr -< blockFrame rtys is
+pushBlock :: ArrowWasm v c => c ([WasmType], [Instr]) ()
+pushBlock = proc (rtys, is) -> pushFr -< blockFrame rtys is
 
-loop :: ArrowWasm v c => c ([WasmType], [Instr]) ()
-loop = proc (rtys, is) -> pushFr -< loopFrame rtys is
+pushLoop :: ArrowWasm v c => c ([WasmType], [Instr]) ()
+pushLoop = proc (rtys, is) -> pushFr -< loopFrame rtys is
 
 makeClos :: Func -> [v] -> Closure v
 makeClos f vs = let m = M.fromList $ zip (getName <$> (fuParams f)) vs
                 in  Closure m [blockFrame (fuRty f) (fuInstrs f)]
+
+popVals :: ArrowWasm v c => c () [v]
+popVals = proc () -> doWhile hasVal popVal -< ((), ())
 
 popNVals :: ArrowWasm v c => c Int [v]
 popNVals = (\n -> ((), n)) ^>> doN popVal
