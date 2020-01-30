@@ -154,11 +154,7 @@ push v = Env (\config -> (Right (), (pushToStack v config)))
 
 -- |    Pop a single WasmVal from the value stack.
 pop :: MExecutor WasmVal
-<<<<<<< HEAD
 pop = Env (\config -> popFromStack config)
-=======
-pop = Env (\config -> popFromInnerStack config)
->>>>>>> 58d860a... Generalize if_ and fix brIf.
 
 -- |    Put a value into the local environment
 setVar :: String -> WasmVal -> MExecutor ()

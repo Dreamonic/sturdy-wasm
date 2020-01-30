@@ -47,13 +47,10 @@ parseFolded = parens $ do
 parseBlock :: Parser Instr
 parseBlock = do
   keyword "block"
+  t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
-<<<<<<< HEAD
-  return $ Block [] instr
-=======
   return $ Block t instr
->>>>>>> d38db93... Implement br, onExit, if_ and call for Concrete.
 
 parseLoop :: Parser Instr
 parseLoop = do
