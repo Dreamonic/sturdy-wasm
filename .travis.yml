@@ -15,7 +15,7 @@ addons:
 
 # The different configurations we want to test.
 env:
-- ARGS="--resolver lts-13.15"
+- ARGS="--resolver lts-13.30"
 
 before_install:
 # Download and unpack the stack executable
