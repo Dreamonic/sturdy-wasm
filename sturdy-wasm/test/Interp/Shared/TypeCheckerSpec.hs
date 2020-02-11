@@ -9,6 +9,7 @@ import Interp.Shared.TypeChecker
 spec :: Spec
 spec = do
     testIf
+    testNestedIf
     testIfEmpty
     testIfSingular
 
@@ -25,6 +26,24 @@ simpleIfSpec = parse
     \end\n\
     \i32.const 3\n\
     \i32.add))"
+
+-- | TODO check why nested ifs are not validated
+nestedIfSpec = parse
+    "(module\n\
+    \(func $if (result i32)\n\
+        \i32.const 1\n\
+        \if (result i32)\n\
+            \i32.const 2\n\
+            \if (result i32)\n\
+                \i32.const 10\n\
+            \else\n\
+                \i32.const 20\n\
+            \end\n\
+        \else\n\
+            \i32.const 30\n\
+        \end\n\
+    \)\n\
+    \)"
 
 ifSpec = parse
     "(module\n\
@@ -46,6 +65,9 @@ ifSpec = parse
 
 testIf = it "If should validate both branches" $
          validateFunc "$if" [] simpleIfSpec `shouldBe` Left "Expected type I32 but got I64."
+
+testNestedIf = it "Correct nested if should validate correctly" $
+    validateFunc "$if" [] nestedIfSpec `shouldBe` Right [I32]
 
 testIfEmpty = it "Empty if should validate correctly" $
         validateFunc "$empty" [I32] ifSpec `shouldBe` Right []
