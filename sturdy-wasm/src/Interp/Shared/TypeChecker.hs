@@ -50,7 +50,7 @@ instance (ArrowChoice c, ArrowFail String c, ArrowState (WasmState WasmType) c, 
         clearFrames -< ()
         pushBlock -< bl
 
-instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
+instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c, ArrowState s c)
     => IsVal WasmType (CheckerT c) where
 
     const = arr getType
@@ -81,7 +81,9 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
 
     if_ f g = proc (ty, x, y) -> do
         checkType -< (ty, I32)
+        state <- get -< ()
         f -< x
+        put -< state
         g -< y -- TODO: this clearly isn't the correct implementation.
 
     call = proc f -> do

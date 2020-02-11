@@ -35,11 +35,15 @@ parseInstruction
   <|> parseBinaryInstr
   <|> parseUnaryInstr
   <|> parseCompareInstr
+  <|> parseNopInstr
   <|> parens parseInstruction
 
--- Parse instructions that are folded into an S-expression
 parseFolded :: Parser [Instr]
-parseFolded = parens $ do
+parseFolded =  try parseFoldedIf <|> parseFoldedInstr
+
+-- Parse instructions that are folded into an S-expression
+parseFoldedInstr :: Parser [Instr]
+parseFoldedInstr = parens $ do
   instruction <- parseInstruction
   operands <- many parseFolded
   return $ concat operands ++ [instruction]
@@ -74,14 +78,28 @@ parseIf = do
   keyword "end"
   return $ If t instrT instrF
 
+parseFoldedIf :: Parser [Instr]
+parseFoldedIf = parens $ do
+  keyword "if"
+  _ <- option "" identifier -- | ignore label
+  t <- many $ try parseResultType
+  instrs <- parseFolded
+  instrT <- parens $ do
+    keyword "then"
+    parseBody
+  instrF <- option [] $ parens $ do
+    keyword "else"
+    parseBody
+  return $ instrs ++ [If t instrT instrF]
+
 parseGetLocal :: Parser Instr
 parseGetLocal = do
-  keyword "get_local"
+  (keyword "get_local") <|> (keyword "local.get")
   return LocalGet <*> identifier
 
 parseSetLocal :: Parser Instr
 parseSetLocal = do
-  keyword "set_local"
+  (keyword "set_local") <|> (keyword "get_local")
   return LocalSet <*> identifier
 
 parseTeeLocal :: Parser Instr
@@ -132,6 +150,10 @@ parseCompareInstr = try $ do
   i <- keyword "eq"
   return (Compare t Eql)
 
+parseNopInstr :: Parser Instr
+parseNopInstr = try $ do
+  keyword "nop"
+  return Nop
 
 -- make Integer Binary Instr
 makeBinII :: String -> Parser BinOpInstr
