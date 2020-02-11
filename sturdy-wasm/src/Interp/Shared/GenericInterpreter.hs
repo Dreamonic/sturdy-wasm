@@ -5,6 +5,8 @@
 
 module Interp.Shared.GenericInterpreter
     ( IsVal
+    , UseBlock
+    , checkBlock
     , const
     , binary
     , unary
@@ -37,7 +39,11 @@ class Arrow c => IsVal v c | c -> v where
     if_ :: c x z -> c y z -> c (v, x, y) z
     call :: c Func ()
 
-type CanInterp v e c = (ArrowChoice c, IsVal v c, ArrowWasm v c, ArrowFail e c,
+-- | Interface for block computations
+class Arrow c => UseBlock v c | c -> v where
+    checkBlock :: c ([WasmType], [Instr]) ()
+
+type CanInterp v e c = (ArrowChoice c, IsVal v c, UseBlock v c, ArrowWasm v c, ArrowFail e c,
     IsString e)
 
 interp :: CanInterp v e c => c () [v]
@@ -83,7 +89,7 @@ interpInstr = proc i -> case i of
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
-        if_ pushBlock pushBlock -< (v, (rtys, ifBr), (rtys, elBr))
+        if_ checkBlock pushBlock -< (v, (rtys, ifBr), (rtys, elBr))
 
     Call name -> do
         f <- getFunc -< name

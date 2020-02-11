@@ -9,6 +9,10 @@
 
 module Control.Arrow.Transformer.Wasm
 ( WasmT(..)
+, WasmState
+, modifyTopClos
+, clearFrames
+, closFrs
 , empty
 ) where
 
@@ -101,6 +105,10 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
 
     loadModule = modify $ proc (mdl, st) ->
         returnA -< ((), set funcs (funcMapFromModule mdl) st)
+
+clearFrames :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c () ()
+clearFrames = modifyTopClos $ proc (_, clos) -> returnA -< ((), set closFrs [] clos)
 
 modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
     IsString e) => c (x, Frame v) (y, Frame v) -> c x y

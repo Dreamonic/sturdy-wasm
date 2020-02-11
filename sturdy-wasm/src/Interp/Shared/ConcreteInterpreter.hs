@@ -45,6 +45,9 @@ instance ArrowRun c => ArrowRun (ConcreteT c) where
     type Run (ConcreteT c) x y = Run c x y
     run = Trans.run . runConcreteT
 
+instance (ArrowWasm WasmVal c) => UseBlock WasmVal (ConcreteT c) where
+    checkBlock = pushBlock
+
 instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
     => IsVal WasmVal (ConcreteT c) where
 
