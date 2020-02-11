@@ -2,7 +2,7 @@ module Interp.Monadic.ExecutorSpec (spec) where
 
 import Test.Hspec
 
-import Interp.TestPrograms
+import TestPrograms.Concrete
 import Interp.Monadic.Executor
 
 spec :: Spec

@@ -14,6 +14,7 @@ module Interp.Shared.TypeChecker
 import Prelude hiding (compare, const, id, fail)
 import Data.Profunctor
 import Data.String
+import Data.Concrete.Error
 import Text.Printf
 import Control.Category hiding ((.))
 import Control.Arrow
@@ -86,3 +87,16 @@ checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
 checkType = proc (actTy, expTy) -> if actTy == expTy
     then returnA -< ()
     else fail -< printf "Expected type %s but got %s." (show expTy) (show actTy)
+
+
+validateFunc :: String -> [WasmType] -> WasmModule -> Either String [WasmType]
+validateFunc name vs mdl =
+    let comp = proc () -> do
+            loadModule -< mdl
+            f <- getFunc -< name
+            pushClos -< makeClos f vs
+            (interp :: CheckerT
+                           (WasmT WasmType
+                               (FailureT String
+                                   (->))) () [WasmType]) -< ()
+    in  toEither (snd <$> (Trans.run comp) (empty, ()))

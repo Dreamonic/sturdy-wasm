@@ -2,7 +2,7 @@ module Interp.DirectStyle.ExecutorSpec (spec) where
 
 import Test.Hspec
 
-import Interp.TestPrograms
+import TestPrograms.Concrete
 import Interp.DirectStyle.Executor
 
 spec :: Spec

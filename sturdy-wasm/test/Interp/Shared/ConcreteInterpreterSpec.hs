@@ -2,7 +2,7 @@ module Interp.Shared.ConcreteInterpreterSpec (spec) where
 
 import Test.Hspec
 
-import Interp.TestPrograms
+import TestPrograms.Concrete
 import Interp.Shared.ConcreteInterpreter
 
 spec :: Spec
