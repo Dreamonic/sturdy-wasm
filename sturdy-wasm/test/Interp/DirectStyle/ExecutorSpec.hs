@@ -2,11 +2,11 @@ module Interp.DirectStyle.ExecutorSpec (spec) where
 
 import Test.Hspec
 
-import TestPrograms.Concrete
+import TestPrograms.ConcreteTests
 import Interp.DirectStyle.Executor
 
 spec :: Spec
-spec = describe "Run test programs on DirectStyle Executor" $
+spec = describe "Run ConcreteTests on DirectStyle Executor" $
        sequence_ (fmap (\t -> t execFunc) tests)
 
 -- Test branchIf true is missing

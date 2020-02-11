@@ -1,4 +1,4 @@
-module TestPrograms.Concrete
+module TestPrograms.ConcreteTests
 where
 
 import Test.QuickCheck

@@ -171,3 +171,25 @@ programEvenOdd = parse
         \i32.sub\n\
         \call $even\n\
     \end))"
+
+programIntsAndFloats = parse
+    "(module\n\
+    \(func $foo (param $x i32) (param $y f32) (result f32)\n\
+    \get_local $x\n\
+    \i32.const -5\n\
+    \i32.sub\n\
+    \set_local $x\n\
+    \get_local $y\n\
+    \f32.const 4.44\n\
+    \f32.mul))"
+
+programPreciseIntsAndFloats = parse
+    "(module\n\
+    \(func $foo (param $x f64) (param $y i64) (result f64)\n\
+    \get_local $y\n\
+    \i64.const 2\n\
+    \i64.mul\n\
+    \set_local $y\n\
+    \get_local $x\n\
+    \f64.const 11.2\n\
+    \f64.sub))"

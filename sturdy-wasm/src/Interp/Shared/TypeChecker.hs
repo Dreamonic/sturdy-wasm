@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Interp.Shared.TypeChecker
-    (
+    ( checkFunc
     ) where
 
 import Prelude hiding (compare, const, id, fail)
@@ -29,6 +29,7 @@ import Control.Lens hiding (Const, op)
 import Types
 import Syntax
 import Interp.Shared.GenericInterpreter
+import Interp.Util (CheckType)
 import Control.Arrow.Wasm
 import Control.Arrow.Transformer.Wasm
 import Control.Arrow.Chain
@@ -89,8 +90,8 @@ checkType = proc (actTy, expTy) -> if actTy == expTy
     else fail -< printf "Expected type %s but got %s." (show expTy) (show actTy)
 
 
-validateFunc :: String -> [WasmType] -> WasmModule -> Either String [WasmType]
-validateFunc name vs mdl =
+checkFunc :: CheckType
+checkFunc name vs mdl =
     let comp = proc () -> do
             loadModule -< mdl
             f <- getFunc -< name
