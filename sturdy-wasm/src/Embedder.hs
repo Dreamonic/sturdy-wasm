@@ -1,19 +1,60 @@
 module Embedder
-  ( runWasmRepl
+  ( runWasm
 ) where
 
 import qualified Data.Map as Map
 import qualified Data.Text as T (strip, pack, unpack)
 import Data.List
 import System.IO
+import System.Environment
+import System.Exit
 
 import Parsing.Parser
 import Syntax
 import Types
 import Interp.Monadic.Executor
 
+runWasm :: IO ()
+runWasm = getArgs >>= parseArgs
+
+parseArgs :: [String] -> IO ()
+parseArgs ["-h"] = printUsage >> exit
+parseArgs ["-i"] = runWasmRepl
+parseArgs _ = printUsage >> exit
+
+exit :: IO a
+exit = exitWith ExitSuccess
+
+printUsage :: IO ()
+printUsage = putStrLn $ 
+    "Usage:\n\
+    \   -h : Print this message\n\
+    \   -i : Run in interactive mode\n"
+
+printReplUsage :: IO ()
+printReplUsage = putStrLn $
+    "Commands:\n\
+    \   :q        : exits the repl\n\
+    \   :l <PATH> : loads module in WAT file given by PATH\n\n\
+    \To Execute a function when a module is loaded:\n\n\
+    \program.wat\n\
+    \(module\n\
+    \   (func $increment (param $a i32) (result i32)\n\
+    \       local.get $a\n\
+    \       i32.const 1\n\
+    \       i32.add\n\
+    \   )\n\
+    \)\n\n\
+    \e.g.\n\
+    \$> :l program.wat\n\
+    \Module loaded: ...\n\
+    \$> increment 1 \n\
+    \Result: [I32Val 2]\n"
+
 runWasmRepl :: IO ()
-runWasmRepl = wasmRepl (WasmModule [])
+runWasmRepl = do
+    printReplUsage    
+    wasmRepl (WasmModule [])
 
 wasmRepl :: WasmModule -> IO ()
 wasmRepl module' = do
@@ -25,7 +66,6 @@ wasmRepl module' = do
 
 processRepl :: WasmModule -> [String] -> IO ()
 processRepl module' argv = case argv of
-    "exit":_ -> goodbye
     ":q":_   -> goodbye
     ":l":xs  -> loadFile $ head xs
     vs ->       callFunc module' vs
