@@ -15,18 +15,27 @@ import Types(WasmType(..), WasmVal(..), isInt, isFloat)
 import Syntax
 
 -- Parse a function body consisting of a mix of plain and foldedinstructions
-parseBody :: Parser [Instr]
-parseBody = do
-  instructions <- parseFolded <|> many parseInstruction
+manyInstr :: Parser [Instr]
+manyInstr = do
+  instructions <- foldedInstr <|> many instr
   if instructions == mzero then return mzero else do
-    rest <- parseBody <|> return []
+    rest <- manyInstr <|> return []
     return $ instructions ++ rest
 
-parseInstruction
-  = parseBlock
-  <|> parseLoop
-  <|> parseBranch
+instr :: Parser Instr
+instr
+  = plainInstr
+  <|> blockInstr
+
+blockInstr :: Parser Instr
+blockInstr 
+  = parseBlockInstr
+  <|> parseLoopInstr
   <|> parseIf
+
+plainInstr :: Parser Instr
+plainInstr  
+  = parseBranch
   <|> parseGetLocal
   <|> parseSetLocal
   <|> parseTeeLocal
@@ -36,32 +45,45 @@ parseInstruction
   <|> parseUnaryInstr
   <|> parseCompareInstr
   <|> parseNopInstr
-  <|> parens parseInstruction
 
-parseFolded :: Parser [Instr]
-parseFolded =  try parseFoldedIf <|> parseFoldedInstr
+foldedInstr :: Parser [Instr]
+foldedInstr 
+  = try parseFoldedIf
+  <|> parseFoldedBlockInstr
+  <|> parseFoldedLoopInstr
+  <|> parseFoldedInstr
 
 -- Parse instructions that are folded into an S-expression
 parseFoldedInstr :: Parser [Instr]
 parseFoldedInstr = parens $ do
-  instruction <- parseInstruction
-  operands <- many parseFolded
+  instruction <- plainInstr
+  operands <- many foldedInstr
   return $ concat operands ++ [instruction]
 
-parseBlock :: Parser Instr
-parseBlock = do
+parseFoldedBlockInstr :: Parser [Instr]
+parseFoldedBlockInstr = try $ do
+  instr' <- parens parseBlockInstr
+  return [instr']
+
+parseFoldedLoopInstr :: Parser [Instr]
+parseFoldedLoopInstr = try $ do
+  instr' <- parens parseLoopInstr
+  return [instr']
+
+parseBlockInstr :: Parser Instr
+parseBlockInstr = do
   keyword "block"
   t <- many $ parseResultType
-  instr <- parseBody
+  instr' <- manyInstr
   keyword "end"
-  return $ Block t instr
+  return $ Block t instr'
 
-parseLoop :: Parser Instr
-parseLoop = do
+parseLoopInstr :: Parser Instr
+parseLoopInstr = do
   keyword "loop"
-  instr <- parseBody
+  instr' <- manyInstr
   keyword "end"
-  return $ Loop [] instr
+  return $ Loop [] instr'
 
 parseBranch :: Parser Instr
 parseBranch =
@@ -71,27 +93,30 @@ parseBranch =
 parseIf :: Parser Instr
 parseIf = do
   keyword "if"
+  _ <- option "" identifier -- ignore label
   t <- many $ parseResultType
-  instrT <- many $ parseInstruction
-  keyword "else"
-  instrF <- many $ parseInstruction
+  instrT <- manyInstr
+  instrF <- option [] $ do 
+    keyword "else"
+    manyInstr
   keyword "end"
   return $ If t instrT instrF
 
 parseFoldedIf :: Parser [Instr]
 parseFoldedIf = parens $ do
   keyword "if"
-  _ <- option "" identifier -- | ignore label
+  _ <- option "" identifier -- ignore label
   t <- many $ try parseResultType
-  instrs <- parseFolded
+  instrs <- foldedInstr
   instrT <- parens $ do
     keyword "then"
-    parseBody
+    manyInstr
   instrF <- option [] $ parens $ do
     keyword "else"
-    parseBody
+    manyInstr
   return $ instrs ++ [If t instrT instrF]
 
+-- Allow both spec and WASM studio style variable instructions
 parseGetLocal :: Parser Instr
 parseGetLocal = do
   (keyword "get_local") <|> (keyword "local.get")
@@ -203,16 +228,14 @@ parseResultType = parens $ do
   typ   <- parseType
   return typ
 
-
 function :: Parser Func
 function = parens $ do
   keyword "func"
   idstr <- identifier
   params <- many $ try param
   resultTypes <- many $ try parseResultType
-  instr  <- parseBody
-  return $ Func idstr params resultTypes instr
-
+  instr'  <- manyInstr
+  return $ Func idstr params resultTypes instr'
 
 -- TODO: currently only handles function definitions, not exports etc
 wasmModule :: Parser WasmModule
@@ -220,8 +243,6 @@ wasmModule = parens $ do
   keyword "module"
   functions <- many function
   return (WasmModule functions)
-
-watfunc = "(func $add (param $lhs i32) (param $rhs i32) (result i32) get_local $lhs get_local $rhs i32.add)"
 
 parseWasm :: Parser a -> String -> a
 parseWasm func str = case parse func "wasm lang" str of
