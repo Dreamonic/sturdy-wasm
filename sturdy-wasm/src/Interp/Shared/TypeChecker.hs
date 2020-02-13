@@ -44,6 +44,38 @@ instance ArrowRun c => ArrowRun (CheckerT c) where
     type Run (CheckerT c) x y = Run c x y
     run = Trans.run . runCheckerT
 
+checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
+    => c (WasmType, WasmType) ()
+checkType = proc (actTy, expTy) -> if actTy == expTy
+    then returnA -< ()
+    else fail -< printf "Expected type %s but got %s." (show expTy) (show actTy)
+
+checkTypeList :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
+    => c ([WasmType], [WasmType]) ()
+checkTypeList = proc (actTys, expTys) -> if actTys == expTys
+    then returnA -< ()
+    else fail -< printf "Expected types %s but got %s." (show expTys)
+        (show actTys) -- the lists are actually reversed in wasm studio
+
+checkTypeListWeak :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
+    => c ([WasmType], [WasmType]) ()
+checkTypeListWeak = proc (actTys, expTys) ->
+    if actTys == expTys || (length expTys < length actTys &&
+            take (length expTys) actTys == expTys)
+        then returnA -< ()
+        else fail -< printf "Expected types %s but got %s." (show expTys)
+            (show actTys)
+
+branchWith :: (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
+    => c ([WasmType], [WasmType]) () -> c Int ()
+branchWith check = proc n -> do
+    tys <- getVals -< ()
+    fr <- getFrAt -< n
+    let actTys = case view frKind fr of
+            BlockK  -> view frRty fr
+            LoopK _ -> []
+    check -< (tys, actTys)
+
 instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
     => IsVal WasmType (CheckerT c) where
 
@@ -61,17 +93,20 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
     compare = proc (opTy, _, ty1, ty2) -> do
         checkType -< (ty1, opTy)
         checkType -< (ty2, opTy)
-        returnA -< opTy
+        returnA -< I32
 
-    br = proc n -> do
-        tys <- getVals -< ()
-        fr <- getFrAt -< n
-        mapA_ checkType -< zip (view frRty fr) tys
+    localSet = proc (var, ty) -> do
+        readTy <- readLocal -< var
+        checkType -< (ty, readTy)
+
+    br = branchWith checkTypeListWeak
+
+    brIf = branchWith checkTypeList
 
     onExit = proc () -> do
         tys <- getVals -< ()
         fr <- getTopFr -< ()
-        mapA_ checkType -< zip (view frRty fr) tys
+        checkTypeList -< (tys, (view frRty fr))
 
     if_ f g = proc (ty, x, y) -> do
         checkType -< (ty, I32)
@@ -80,22 +115,22 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
 
     call = proc f -> do
         tys <- popNVals -< length (fuParams f)
-        mapA_ checkType -< zip tys (fuRty f)
+        checkTypeList -< (tys, reverse (prmType <$> fuParams f))
+        pushVals -< (fuRty f)
 
 
-checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
-    => c (WasmType, WasmType) ()
-checkType = proc (actTy, expTy) -> if actTy == expTy
-    then returnA -< ()
-    else fail -< printf "Expected type %s but got %s." (show expTy) (show actTy)
-
+enterFunc :: (ArrowWasm WasmType c, ArrowFail e c, IsString e, PrintfType e)
+    => c (Func, [WasmType]) ()
+enterFunc = proc (f, tys) -> do
+    checkTypeList -< (tys, reverse (prmType <$> fuParams f))
+    pushClos -< makeClos f tys
 
 checkFunc :: CheckType
 checkFunc name vs mdl =
     let comp = proc () -> do
             loadModule -< mdl
             f <- getFunc -< name
-            pushClos -< makeClos f vs
+            enterFunc -< (f, vs)
             (interp :: CheckerT
                            (WasmT WasmType
                                (FailureT String

@@ -4,15 +4,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 
 module Interp.Shared.GenericInterpreter
-    ( IsVal
-    , const
-    , binary
-    , unary
-    , compare
-    , br
-    , onExit
-    , if_
-    , call
+    ( IsVal(..)
     , interp
     ) where
 
@@ -32,7 +24,9 @@ class Arrow c => IsVal v c | c -> v where
     binary :: c (WasmType, BinOpInstr, v, v) v
     unary :: c (WasmType, UnOpInstr, v) v
     compare :: c (WasmType, RelOpInstr, v, v) v
+    localSet :: c (String, v) ()
     br :: c Int ()
+    brIf :: c Int ()
     onExit :: c () ()
     if_ :: c x z -> c y z -> c (v, x, y) z
     call :: c Func ()
@@ -79,7 +73,7 @@ interpInstr = proc i -> case i of
 
     BrIf n -> do
         v <- popVal -< ()
-        if_ br returnA -< (v, n, ())
+        if_ brIf returnA -< (v, n, ())
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
@@ -90,12 +84,12 @@ interpInstr = proc i -> case i of
         call -< f
 
     LocalGet var -> do
-        v <- getLocal -< var
+        v <- readLocal -< var
         pushVal -< v
 
     LocalSet var -> do
         v <- popVal -< ()
-        setLocal -< (var, v)
+        localSet -< (var, v)
 
     LocalTee var -> do
         putInstr -< LocalGet var

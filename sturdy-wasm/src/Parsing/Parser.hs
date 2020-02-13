@@ -55,9 +55,10 @@ parseBlock = do
 parseLoop :: Parser Instr
 parseLoop = do
   keyword "loop"
+  t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
-  return $ Loop [] instr
+  return $ Loop t instr
 
 parseBranch :: Parser Instr
 parseBranch =

@@ -67,8 +67,8 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     pushClos :: c (Closure v) ()
     popClos :: c () (Closure v)
     hasClos :: c () Bool
-    getLocal :: c String v
-    setLocal :: c (String, v) ()
+    readLocal :: c String v
+    writeLocal :: c (String, v) ()
     getFunc :: c String Func
     loadModule :: c WasmModule ()
 
@@ -79,7 +79,7 @@ pushLoop :: ArrowWasm v c => c ([WasmType], [Instr]) ()
 pushLoop = proc (rtys, is) -> pushFr -< loopFrame rtys is
 
 makeClos :: Func -> [v] -> Closure v
-makeClos f vs = let m = M.fromList $ zip (getName <$> (fuParams f)) vs
+makeClos f vs = let m = M.fromList $ zip (reverse (prmName <$> (fuParams f))) vs
                 in  Closure m [blockFrame (fuRty f) (fuInstrs f)]
 
 popVals :: ArrowWasm v c => c () [v]

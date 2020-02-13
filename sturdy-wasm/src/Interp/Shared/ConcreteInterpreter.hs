@@ -45,6 +45,13 @@ instance ArrowRun c => ArrowRun (ConcreteT c) where
     type Run (ConcreteT c) x y = Run c x y
     run = Trans.run . runConcreteT
 
+checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
+    => c (WasmVal, WasmType) ()
+checkType = proc (v, ty) -> if ofType v ty
+    then returnA -< ()
+    else fail -< printf "Expected type %s but got %s." (show ty)
+        (show (getType v))
+
 instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
     => IsVal WasmVal (ConcreteT c) where
 
@@ -69,6 +76,8 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         case op of
             Eql -> returnA -< boolToWasm (v2 == v1)
 
+    localSet = writeLocal
+
     br = proc n -> do
         vs <- popVals -< ()
         doN popFr -< ((), n)
@@ -77,6 +86,8 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         case view frKind fr of
             BlockK   -> pushFr -< set frInstrs [] fr
             LoopK is -> pushFr -< set frInstrs is fr
+
+    brIf = br
 
     onExit = id
 
@@ -88,12 +99,6 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmVal c)
         vs <- popNVals -< length (fuParams f)
         pushClos -< makeClos f vs
 
-checkType :: (ArrowChoice c, ArrowFail e c, IsString e, PrintfType e)
-    => c (WasmVal, WasmType) ()
-checkType = proc (v, ty) -> if ofType v ty
-    then returnA -< ()
-    else fail -< printf "Expected type %s but got %s." (show ty)
-        (show (getType v))
 
 execFunc :: ExecType
 execFunc name vs mdl =

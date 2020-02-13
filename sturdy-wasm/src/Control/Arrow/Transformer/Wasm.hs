@@ -86,16 +86,17 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     hasClos = modify $ proc ((), st) ->
         returnA -< ((not . null) (view closures st), st)
 
-    getLocal = modifyTopClos $ proc (var, cl) -> do
-        v <- lookup -< (fromString $ printf "Variable %s not in scope" var,
+    readLocal = modifyTopClos $ proc (var, cl) -> do
+        v <- lookup -< (fromString $ printf "Variable %s not in scope." var,
                         var, view closVars cl)
         returnA -< (v, cl)
 
-    setLocal = modifyTopClos $ proc ((var, v), cl) ->
+    writeLocal = modifyTopClos $ proc ((var, v), cl) -> do
+        readLocal -< var
         returnA -< ((), over closVars (M.insert var v) cl)
 
     getFunc = modify $ proc (name, st) -> do
-        func <- lookup -< (fromString $ printf "No function %s in module" name,
+        func <- lookup -< (fromString $ printf "No function %s in module." name,
                         name, view funcs st)
         returnA -< (func, st)
 

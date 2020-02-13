@@ -45,7 +45,7 @@ data UnOpInstr
 data RelOpInstr
     = Eql deriving (Show, Eq)
 
-data Param = Param { getName :: String, getValue :: WasmType }
+data Param = Param { prmName :: String, prmType :: WasmType }
     deriving (Show, Eq)
 
 data Signedness = Signed | Unsigned deriving (Show, Eq)
