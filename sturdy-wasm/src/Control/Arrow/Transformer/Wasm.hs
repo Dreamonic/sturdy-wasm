@@ -11,8 +11,8 @@ module Control.Arrow.Transformer.Wasm
 ( WasmT(..)
 , WasmState
 , modifyTopClos
-, clearFrames
-, closFrs
+, getFrames
+, setFrames
 , empty
 ) where
 
@@ -27,6 +27,8 @@ import Control.Arrow
 import Control.Arrow.Trans
 import Control.Arrow.Fail
 import Control.Arrow.State
+import Control.Arrow.Reader
+import Control.Arrow.Transformer.Concrete.Failure
 import Control.Arrow.Transformer.State
 
 import Syntax
@@ -42,11 +44,29 @@ empty :: WasmState v
 empty = WasmState [] M.empty
 
 newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
-    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
+    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowReader r,
               ArrowRun, ArrowFail e)
 
 deriving instance (ArrowChoice c, Profunctor c)
     => ArrowState (WasmState v) (WasmT v c)
+
+instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e, ArrowWasm v c) 
+    => ArrowWasm v (FailureT e c) where
+    pushVal = lift' pushVal
+    popVal = lift' popVal
+    hasVal = lift' hasVal
+    nextInstr = lift' nextInstr
+    putInstr = lift' putInstr
+    pushFr = lift' pushFr
+    popFr = lift' popFr
+    hasFr = lift' hasFr
+    pushClos = lift' pushClos
+    popClos = lift' popClos
+    hasClos = lift' hasClos
+    getLocal = lift' getLocal
+    setLocal = lift' setLocal
+    getFunc = lift' getFunc
+    loadModule = lift' loadModule
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     => ArrowWasm v (WasmT v c) where
@@ -106,9 +126,13 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     loadModule = modify $ proc (mdl, st) ->
         returnA -< ((), set funcs (funcMapFromModule mdl) st)
 
-clearFrames :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
-    IsString e) => c () ()
-clearFrames = modifyTopClos $ proc (_, clos) -> returnA -< ((), set closFrs [] clos)
+getFrames :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c () [Frame v]
+getFrames = modifyTopClos $ proc (_, clos) -> returnA -< (view closFrs clos, clos)
+
+setFrames :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c [Frame v] ()
+setFrames = modifyTopClos $ proc (fs, clos) -> returnA -< ((), set closFrs fs clos)
 
 modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
     IsString e) => c (x, Frame v) (y, Frame v) -> c x y
