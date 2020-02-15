@@ -39,7 +39,7 @@ data AdminInstr =
   | Invoke Closure
   | Trapping String {- Trap with error message -}
   | Returning (Stack WasmVal)
-  | Breaking Integer (Stack WasmVal)
+  | Breaking Int (Stack WasmVal)
   | Label Int [Instr] Code
   | Frame Frame Code
   deriving (Show, Eq)
@@ -121,6 +121,9 @@ step' (Plain e) vs (Config frame _) = case (e, vs) of
     case vs of
       v : vs' -> (addBind frame e' v, vs', [])
 
+  (LocalTee e', vs) ->
+    (frame, vs, [Plain (LocalSet e'), Plain (LocalGet e')])
+
   (Call tag, vs) ->
     (frame, vs, [Invoke (Closure EmptyInst (findFunc tag frame))])
 
@@ -165,7 +168,7 @@ step' (Invoke (Closure _ (Func name params _ instr))) vs (Config frame _) =
   let (frame', vs') = addBinds frame params vs
   in (frame, (eval (Config frame' (Code [] (fmap Plain instr)))) ++ vs', [])
 
-step' err _ _ = error $"Not implemented" ++ show err
+step' err _ _ = error $"Not implemented " ++ show err
 
 -- |Evaluates code under given context
 --  based on proposition 4.2 evalution should either

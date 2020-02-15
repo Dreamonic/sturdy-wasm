@@ -29,6 +29,9 @@ library:
     - containers
     - parsec
     - lens
+    - profunctors
+    - text
+    - sturdy-lib
 
 executables:
   sturdy-wasm-exe:

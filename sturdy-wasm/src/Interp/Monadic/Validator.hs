@@ -217,15 +217,13 @@ checkM e = case e of
         checkLabel t t ops'
         forM_ (known t) pushM
 
-    Br levels -> do
-        let n = fromInteger levels
+    Br n -> do
         failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
         frame <- peekCtrlM n
         forM_ (known $ labels frame) popM
         setUnreachableM
 
-    BrIf levels -> do
-        let n = fromInteger levels
+    BrIf n -> do
         failM frames (((>=) n) . length) $ "Cannot branch up by " ++ show n
         popM $ Actual I32
         frame <- peekCtrlM n
@@ -283,14 +281,14 @@ checkLabel labels results ops' = do
 
 -- | Validates a single function
 checkFunc :: Func -> M ()
-checkFunc (Func _ params results instr) = do
-    let params' = [(name, val) | (Param name val) <- params]
-    let results' = [t | (Result t) <- results]
+checkFunc f = do
+    let params' = [(name, val) | (Param name val) <- fuParams f]
+    let rty = fuRty f
     forM_ params' $ uncurry pushLocal
-    pushCtrlM results' results'
-    checkSeqM instr
+    pushCtrlM rty rty
+    checkSeqM (fuInstrs f)
     popCtrlM
-    replicateM_ (length params) popLocal
+    replicateM_ (length params') popLocal
 
 -- | Applies given context on state output function and prints the result
 printRes :: M t -> Context -> IO ()

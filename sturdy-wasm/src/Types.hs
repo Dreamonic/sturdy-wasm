@@ -49,7 +49,7 @@ instance Num WasmVal where
 
 instance Fractional WasmVal where
     a / b = (div <|> (/)) <%> a <:*:> b
-    fromRational a = error "Cannot casst from Fraction to WasmVal"
+    fromRational a = error "Cannot cast from Fraction to WasmVal"
 
 instance Eq WasmVal where
     a == b = wasmToBool $ ((==) <=> (==)) <%> a <:*:> b

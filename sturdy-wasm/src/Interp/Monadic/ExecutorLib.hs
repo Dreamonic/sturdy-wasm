@@ -30,7 +30,6 @@ module Interp.Monadic.ExecutorLib
     ) where
 
 import qualified Data.Map as Map
-import Debug.Trace
 import Control.Lens
 
 import Syntax
@@ -63,7 +62,7 @@ data AdminInstr =
     | Invoke Closure
     | Trapping String {- Trap with error message -}
     | Returning (Stack WasmVal)
-    | Breaking Integer (Stack WasmVal)
+    | Breaking Int (Stack WasmVal)
     | Label Int [Instr] Code
     | Frame Frame Code
     deriving (Show, Eq)

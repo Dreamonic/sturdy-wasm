@@ -2,7 +2,7 @@ module Parsing.Lexer(
     identifier
     , anyKeyword
     , keyword
-    , charLiteral 
+    , charLiteral
     , stringLiteral
     , natural
     , integer
@@ -86,4 +86,3 @@ lexeme = T.lexeme lexer
 whiteSpace = T.whiteSpace lexer
 parens = T.parens lexer
 dot = T.dot lexer
-

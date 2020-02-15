@@ -4,25 +4,18 @@ module Syntax
     , UnOpInstr(..)
     , RelOpInstr(..)
     , Param(..)
-    , getName
-    , getValue
-    , Result(..)
-    , getResult
     , Signedness(..)
     , Func(..)
-    , fName
     , WasmModule(..)
-    , modFuncs
     ) where
-
 
 import Types
 
 data Instr
     = Const WasmVal
     | Block [WasmType] [Instr]
-    | Br Integer
-    | BrIf Integer
+    | Br Int
+    | BrIf Int
     | If [WasmType] [Instr] [Instr]
     | Loop [WasmType] [Instr]
     | Call String
@@ -52,14 +45,12 @@ data UnOpInstr
 data RelOpInstr
     = Eql deriving (Show, Eq)
 
-data Param = Param { getName :: String, getValue :: WasmType }
+data Param = Param { prmName :: String, prmType :: WasmType }
     deriving (Show, Eq)
-
-data Result = Result { getResult :: WasmType } deriving (Show, Eq)
 
 data Signedness = Signed | Unsigned deriving (Show, Eq)
 
-data Func = Func { fName :: String, fParams :: [Param], fRes :: [Result],
-                   fIs :: [Instr] } deriving (Show, Eq)
+data Func = Func { fuName :: String, fuParams :: [Param], fuRty :: [WasmType],
+                   fuInstrs :: [Instr] } deriving (Show, Eq)
 
 data WasmModule = WasmModule { modFuncs :: [Func] } deriving (Show, Eq)

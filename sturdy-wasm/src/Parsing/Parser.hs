@@ -29,6 +29,7 @@ parseInstruction
   <|> parseIf
   <|> parseGetLocal
   <|> parseSetLocal
+  <|> parseTeeLocal
   <|> parseCall
   <|> parseConst
   <|> parseBinaryInstr
@@ -46,21 +47,23 @@ parseFolded = parens $ do
 parseBlock :: Parser Instr
 parseBlock = do
   keyword "block"
+  t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
-  return $ Block [] instr
+  return $ Block t instr
 
 parseLoop :: Parser Instr
 parseLoop = do
   keyword "loop"
+  t <- many $ parseResultType
   instr <- parseBody
   keyword "end"
-  return $ Loop [] instr
+  return $ Loop t instr
 
 parseBranch :: Parser Instr
 parseBranch =
-  (keyword "br" >> return Br <*> integer)
-  <|> (keyword "br_if" >> return BrIf <*> integer)
+  (keyword "br" >> return (Br . fromIntegral) <*> integer)
+  <|> (keyword "br_if" >> return (BrIf . fromIntegral) <*> integer)
 
 parseIf :: Parser Instr
 parseIf = do
@@ -70,7 +73,7 @@ parseIf = do
   keyword "else"
   instrF <- many $ parseInstruction
   keyword "end"
-  return $ If (fmap (\(Result x) -> x) t) instrT instrF
+  return $ If t instrT instrF
 
 parseGetLocal :: Parser Instr
 parseGetLocal = do
@@ -81,6 +84,11 @@ parseSetLocal :: Parser Instr
 parseSetLocal = do
   keyword "set_local"
   return LocalSet <*> identifier
+
+parseTeeLocal :: Parser Instr
+parseTeeLocal = do
+  keyword "tee_local"
+  return LocalTee <*> identifier
 
 parseConst :: Parser Instr
 parseConst = try $ do
@@ -168,11 +176,11 @@ param = parens $ do
   typ   <- parseType
   return (Param idstr typ)
 
-parseResultType :: Parser Result
+parseResultType :: Parser WasmType
 parseResultType = parens $ do
   keyword "result"
   typ   <- parseType
-  return (Result typ)
+  return typ
 
 
 function :: Parser Func

@@ -7,7 +7,7 @@ sudo: false
 # Choose a lightweight base image; we provide our own build tools.
 language: generic
 
-# GHC depends on GMP. 
+# GHC depends on GMP.
 addons:
   apt:
     packages:
@@ -15,7 +15,7 @@ addons:
 
 # The different configurations we want to test.
 env:
-- ARGS="--resolver lts-13.15"
+- ARGS="--resolver lts-13.30"
 
 before_install:
 # Download and unpack the stack executable
@@ -26,7 +26,7 @@ before_install:
 # Install GHC if necessary, build the library,
 # executables, and test suites, and runs the test suites. --no-terminal works
 # around some quirks in Travis's terminal implementation.
-script: stack $ARGS --no-terminal --install-ghc test
+script: stack $ARGS --no-terminal --install-ghc test sturdy-wasm
 
 # Caching so the next build will be fast too.
 cache:
