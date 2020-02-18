@@ -2,6 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Control.Arrow.Wasm
     ( FrameKind(..)
@@ -73,7 +74,9 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     loadModule :: c WasmModule ()
 
 pushBlock :: ArrowWasm v c => c ([WasmType], [Instr]) ()
-pushBlock = proc (rtys, is) -> pushFr -< blockFrame rtys is
+pushBlock = proc (rtys, is) -> do
+    let !r = error (show is)
+    pushFr -< blockFrame rtys is
 
 pushLoop :: ArrowWasm v c => c ([WasmType], [Instr]) ()
 pushLoop = proc (rtys, is) -> pushFr -< loopFrame rtys is

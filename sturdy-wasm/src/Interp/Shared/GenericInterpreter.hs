@@ -2,6 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Interp.Shared.GenericInterpreter
     ( IsVal
@@ -22,6 +23,7 @@ import Control.Category
 import Control.Arrow hiding (loop)
 import Control.Arrow.Fail
 import Control.Arrow.Fix
+import Control.Arrow.Store
 
 import Syntax
 import Types
@@ -83,6 +85,7 @@ interpInstr = proc i -> case i of
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
+        let r = error $ show (ifBr)
         if_ pushBlock pushBlock -< (v, (rtys, ifBr), (rtys, elBr))
 
     Call name -> do

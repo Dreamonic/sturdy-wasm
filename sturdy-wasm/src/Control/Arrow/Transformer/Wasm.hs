@@ -28,6 +28,7 @@ import Control.Arrow.Trans
 import Control.Arrow.Fail
 import Control.Arrow.State
 import Control.Arrow.Reader
+import Control.Arrow.Store
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Arrow.Transformer.State
 
@@ -45,7 +46,7 @@ empty = WasmState [] M.empty
 
 newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowReader r,
-              ArrowRun, ArrowFail e)
+              ArrowRun, ArrowFail e, ArrowStore var val)
 
 deriving instance (ArrowChoice c, Profunctor c)
     => ArrowState (WasmState v) (WasmT v c)
