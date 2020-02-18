@@ -75,7 +75,6 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
 
 pushBlock :: ArrowWasm v c => c ([WasmType], [Instr]) ()
 pushBlock = proc (rtys, is) -> do
-    let !r = error (show is)
     pushFr -< blockFrame rtys is
 
 pushLoop :: ArrowWasm v c => c ([WasmType], [Instr]) ()

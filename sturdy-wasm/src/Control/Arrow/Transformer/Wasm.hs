@@ -34,6 +34,8 @@ import Control.Arrow.Transformer.State
 
 import Syntax
 import Control.Arrow.Wasm
+import qualified Control.Arrow.Stack as Stack
+import Control.Arrow.Transformer.Stack
 import Interp.Util
 
 data WasmState v = WasmState { _closures :: [Closure v]
@@ -50,6 +52,10 @@ newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
 
 deriving instance (ArrowChoice c, Profunctor c)
     => ArrowState (WasmState v) (WasmT v c)
+
+instance (Arrow c, Profunctor c, Stack.ArrowStack st c) => Stack.ArrowStack st (WasmT v c) where
+    pop = lift' Stack.pop
+    push = lift' Stack.push
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e, ArrowWasm v c) 
     => ArrowWasm v (FailureT e c) where

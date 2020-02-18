@@ -3,6 +3,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Interp.Shared.GenericInterpreter
     ( IsVal
@@ -15,6 +16,7 @@ module Interp.Shared.GenericInterpreter
     , if_
     , call
     , interp
+    , getR
     ) where
 
 import Prelude hiding (compare, const, id, fail)
@@ -29,6 +31,15 @@ import Syntax
 import Types
 import Control.Arrow.Wasm
 
+class Repr r where
+    getR :: r -> Maybe ([WasmType], [Instr])
+
+instance Repr () where
+    getR _ = Nothing
+
+instance Repr ([WasmType], [Instr]) where
+    getR = Just
+
 class Arrow c => IsVal v c | c -> v where
     const :: c WasmVal v
     binary :: c (WasmType, BinOpInstr, v, v) v
@@ -36,7 +47,7 @@ class Arrow c => IsVal v c | c -> v where
     compare :: c (WasmType, RelOpInstr, v, v) v
     br :: c Int ()
     onExit :: c () ()
-    if_ :: c x z -> c y z -> c (v, x, y) z
+    if_ :: (Repr y) => c x z -> c y z -> c (v, x, y) z
     call :: c Func ()
 
 type CanInterp v e c = (ArrowChoice c, IsVal v c, ArrowWasm v c, ArrowFail e c,
@@ -85,7 +96,6 @@ interpInstr = proc i -> case i of
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
-        let r = error $ show (ifBr)
         if_ pushBlock pushBlock -< (v, (rtys, ifBr), (rtys, elBr))
 
     Call name -> do

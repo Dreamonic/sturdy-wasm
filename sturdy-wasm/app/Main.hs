@@ -15,7 +15,12 @@ nestedIfSpec = parseWasm wasmModule
     \(func $if (result i32)\n\
         \i32.const 1\n\
         \if (result i32)\n\
-            \i64.const 10\n\
+            \i32.const 1\n\
+            \if (result i32)\n\
+                \i32.const 10\n\
+            \else\n\
+                \i32.const 10\n\
+            \end\n\
         \else\n\
             \i32.const 30\n\
         \end\n\
