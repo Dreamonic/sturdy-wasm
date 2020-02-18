@@ -23,6 +23,8 @@ module Control.Arrow.Wasm
     , getVals
     , getFrAt
     , getTopFr
+    , modifyExitDepth
+    , getDepth
     ) where
 
 import Prelude hiding (id)
@@ -71,6 +73,8 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     writeLocal :: c (String, v) ()
     getFunc :: c String Func
     loadModule :: c WasmModule ()
+    getExitDepth :: c () Int
+    setExitDepth :: c Int ()
 
 pushBlock :: ArrowWasm v c => c ([WasmType], [Instr]) ()
 pushBlock = proc (rtys, is) -> pushFr -< blockFrame rtys is
@@ -107,3 +111,19 @@ getFrAt = proc n -> do
 
 getTopFr :: ArrowWasm v c => c () (Frame v)
 getTopFr = (\_ -> 0) ^>> getFrAt
+
+modifyExitDepth :: ArrowWasm v c => (Int -> Int) -> c () ()
+modifyExitDepth f = proc () -> do
+    d <- getExitDepth -< ()
+    setExitDepth -< f d
+
+getDepth :: ArrowWasm v c => c () Int
+getDepth = proc () -> do
+    nonEmpty <- hasFr -< ()
+    if nonEmpty
+        then do
+            fr <- popFr -< ()
+            d <- getDepth -< ()
+            pushFr -< fr
+            returnA -< d + 1
+        else returnA -< (-1)

@@ -13,7 +13,6 @@ import Data.String
 import Control.Category
 import Control.Arrow hiding (loop)
 import Control.Arrow.Fail
-import Control.Arrow.Fix
 
 import Syntax
 import Types
@@ -35,12 +34,12 @@ type CanInterp v e c = (ArrowChoice c, IsVal v c, ArrowWasm v c, ArrowFail e c,
     IsString e)
 
 interp :: CanInterp v e c => c () [v]
-interp = proc () -> do
+interp = myFix $ \interp' -> proc () -> do
     next <- nextInstr -< ()
     case next of
         Just i  -> do
             interpInstr -< i
-            interp -< ()
+            interp' -< ()
         Nothing -> do
             onExit -< ()
             vs <- popVals -< ()
@@ -49,15 +48,28 @@ interp = proc () -> do
             if continue
                 then do
                     pushVals -< vs
-                    interp -< ()
+                    interp' -< ()
                 else do
                     popClos -< ()
                     continue2 <- hasClos -< ()
                     if continue2
                         then do
                             pushVals -< vs
-                            interp -< ()
+                            interp' -< ()
                         else returnA -< vs
+
+interpPause :: CanInterp v e c => Int -> c () [v]
+interpPause d = proc () -> do
+    setExitDepth -< d
+    interp -< ()
+
+myFix :: CanInterp v e c => (c () [v] -> c () [v]) -> c () [v]
+myFix f = f (proc x -> do
+    dAct <- getDepth -< ()
+    dExit <- getExitDepth -< ()
+    if dAct <= dExit
+        then getVals -< ()
+        else myFix f -< x)
 
 interpInstr :: CanInterp v e c => c Instr ()
 interpInstr = proc i -> case i of

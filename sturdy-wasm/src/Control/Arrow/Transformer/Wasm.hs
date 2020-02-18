@@ -30,12 +30,13 @@ import Control.Arrow.Wasm
 import Interp.Util
 
 data WasmState v = WasmState { _closures :: [Closure v]
-                             , _funcs :: M.Map String Func }
+                             , _funcs :: M.Map String Func
+                             , _exitDepth :: Int }
 
 makeLenses ''WasmState
 
 empty :: WasmState v
-empty = WasmState [] M.empty
+empty = WasmState [] M.empty (-1)
 
 newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
@@ -102,6 +103,13 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
 
     loadModule = modify $ proc (mdl, st) ->
         returnA -< ((), set funcs (funcMapFromModule mdl) st)
+
+    getExitDepth = proc () -> do
+        st <- get -< ()
+        returnA -< view exitDepth st
+
+    setExitDepth = modify $ proc (d, st) ->
+        returnA -< ((), set exitDepth d st)
 
 modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
     IsString e) => c (x, Frame v) (y, Frame v) -> c x y
