@@ -23,7 +23,9 @@ allTests = [testSimpleFunction, testReadLocalVars, testSetLocalVars, testEquals,
             testInfiniteLoop, testIllegalBranchReturn, testOutOfBoundsBranchIf,
             testIllegalBranchIfReturn, testOutOfScopeFuncCall,
             testIllegalFuncCallReturn, testIllegalFuncCallParameter,
-            testInfiniteRecursion]
+            testInfiniteRecursion, testIllegalIfCondition, testIllegalIfReturn,
+            testIllegalElseReturn, testNestedIfs, testManyNestedIfs,
+            testNestedBlockBranch, testOnePass, testOnePassNested]
 
 -- error message templates
 
@@ -83,10 +85,14 @@ testLoop checkFunc = it "Check loop" $
     checkFunc "$foo" [I32] programLoop `shouldBe` (Right [I32])
 
 testIfElse checkFunc = it "Check If" $
-    checkFunc "$foo" [I32] programIfElse `shouldBe` (Right [I32])
+    checkFunc "$foo" [I32] programIfElse `shouldBe` (Right [I32, I32])
+
+testNestedBlockBranch checkFunc = it "Check branching from nested blocks" $
+    checkFunc "$foo" [I32] programNestedBlockBranch `shouldBe` (Right [I32])
 
 testNestedBlocks checkFunc = it "Check nested blocks" $
-    checkFunc "$foo" [I32] programNestedBlocks `shouldBe` (Right [I32])
+    checkFunc "$foo" [] programNestedBlocks `shouldBe`
+        (Right [I32, I32, I32, I32, I32])
 
 testFunctionCalls checkFunc = it "Check function calls" $
     checkFunc "$quadruple" [I32] programFunctionCalls `shouldBe` (Right [I32])
@@ -175,3 +181,29 @@ testIllegalFuncCallParameter checkFunc = it "Fail when giving function illegal i
 
 testInfiniteRecursion checkFunc = it "Check infinite recursion" $
     checkFunc "$foo" [] programInfiniteRecursion `shouldBe` (Right [I32])
+
+testIllegalIfCondition checkFunc = it "Fail when giving if illegal input" $
+    checkFunc "$foo" [] programIllegalIfCondition `shouldBe` (Left $
+        expectType F64 I32)
+
+testIllegalIfReturn checkFunc = it "Fail when if-block produces illegal output" $
+    checkFunc "$foo" [] programIllegalIfReturn `shouldBe` (Left $
+        expectTypeList [I64] [I32])
+
+testIllegalElseReturn checkFunc = it "Fail when else-block produces illegal output" $
+    checkFunc "$foo" [] programIllegalElseReturn `shouldBe` (Left $
+        expectTypeList [I32, I32] [I32])
+
+testNestedIfs checkFunc = it "Check nested ifs" $
+    checkFunc "$foo" [I32, I32, I32] programNestedIfs `shouldBe` (Right [I64])
+
+testManyNestedIfs checkFunc = it "Check many nested ifs" $
+    checkFunc "$foo" [] programManyNestedIfs `shouldBe` (Right [I64])
+
+testOnePass checkFunc = it "Check if if-statements do not make the type checker\
+    \run inefficiently" $ checkFunc "$foo" [] programOnePass `shouldBe`
+        (Left $ varOutOfScope "$heya")
+
+testOnePassNested checkFunc = it "Check if nested if-statements do not make the\
+    \type checker run inefficiently" $ checkFunc "$foo" [] programOnePassNested
+        `shouldBe` (Left $ varOutOfScope "$bonjour")

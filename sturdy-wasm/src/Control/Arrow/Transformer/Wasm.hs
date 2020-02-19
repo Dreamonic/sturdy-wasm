@@ -12,11 +12,12 @@ module Control.Arrow.Transformer.Wasm
 , empty
 ) where
 
-import qualified Data.Map as M
 import Prelude hiding (fail, lookup)
 import Data.String
-import Text.Printf
 import Data.Profunctor
+import qualified Data.Map as M
+import qualified Data.Set as S
+import Text.Printf
 import Control.Lens
 import Control.Category hiding ((.))
 import Control.Arrow
@@ -30,13 +31,12 @@ import Control.Arrow.Wasm
 import Interp.Util
 
 data WasmState v = WasmState { _closures :: [Closure v]
-                             , _funcs :: M.Map String Func
-                             , _exitDepth :: Int }
+                             , _funcs :: M.Map String Func }
 
 makeLenses ''WasmState
 
 empty :: WasmState v
-empty = WasmState [] M.empty (-1)
+empty = WasmState [] M.empty
 
 newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
@@ -44,6 +44,33 @@ newtype WasmT v c x y = WasmT (StateT (WasmState v) c x y)
 
 deriving instance (ArrowChoice c, Profunctor c)
     => ArrowState (WasmState v) (WasmT v c)
+
+modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c (x, Frame v) (y, Frame v) -> c x y
+modifyTopFrame f = modifyTopClos $ proc (x, cl) -> case view closFrs cl of
+    []      -> fail -< fromString "Tried to edit an empty frame stack."
+    fr:frs  -> do
+        (y, fr') <- f -< (x, fr)
+        returnA -< (y, set closFrs (fr':frs) cl)
+
+modifyTopClos :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
+    IsString e) => c (x, Closure v) (y, Closure v) -> c x y
+modifyTopClos f = modify $ proc (x, st) -> case view closures st of
+    []     -> fail -< fromString "Tried to edit an empty closure stack."
+    cl:cls -> do
+        (y, cl') <- f -< (x, cl)
+        returnA -< (y, set closures (cl':cls) st)
+
+pop :: (ArrowChoice c, ArrowFail e c, IsString e) => c (e, [a]) (a, [a])
+pop = proc (msg, list) -> case list of
+    []   -> fail -< msg
+    x:xs -> returnA -< (x, xs)
+
+lookup :: (ArrowChoice c, ArrowFail e c, IsString e, Ord k,
+    Show k) => c (e, k, M.Map k v) v
+lookup = proc (msg, k, mp) -> case M.lookup k mp of
+    Just v  -> returnA -< v
+    Nothing -> fail -< msg
 
 instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     => ArrowWasm v (WasmT v c) where
@@ -104,37 +131,14 @@ instance (ArrowChoice c, Profunctor c, ArrowFail e c, IsString e)
     loadModule = modify $ proc (mdl, st) ->
         returnA -< ((), set funcs (funcMapFromModule mdl) st)
 
-    getExitDepth = proc () -> do
+    getExitDepths = modifyTopClos $ proc ((), cl) ->
+        returnA -< (view closExits cl, cl)
+
+    setExitDepths = modifyTopClos $ proc (d, cl) ->
+        returnA -< ((), set closExits d cl)
+
+    simulate f = proc x -> do
         st <- get -< ()
-        returnA -< view exitDepth st
-
-    setExitDepth = modify $ proc (d, st) ->
-        returnA -< ((), set exitDepth d st)
-
-modifyTopFrame :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
-    IsString e) => c (x, Frame v) (y, Frame v) -> c x y
-modifyTopFrame f = modifyTopClos $ proc (x, cl) -> case view closFrs cl of
-    []      -> fail -< fromString "Tried to edit an empty frame stack."
-    fr:frs  -> do
-        (y, fr') <- f -< (x, fr)
-        returnA -< (y, set closFrs (fr':frs) cl)
-
-modifyTopClos :: (ArrowChoice c, ArrowState (WasmState v) c, ArrowFail e c,
-    IsString e) => c (x, Closure v) (y, Closure v) -> c x y
-modifyTopClos f = modify $ proc (x, st) -> case view closures st of
-    []     -> fail -< fromString "Tried to edit an empty closure stack."
-    cl:cls -> do
-        (y, cl') <- f -< (x, cl)
-        returnA -< (y, set closures (cl':cls) st)
-
-pop :: (ArrowChoice c, ArrowFail e c, IsString e)
-    => c (e, [a]) (a, [a])
-pop = proc (msg, list) -> case list of
-    []   -> fail -< msg
-    x:xs -> returnA -< (x, xs)
-
-lookup :: (ArrowChoice c, ArrowFail e c, IsString e, Ord k,
-    Show k) => c (e, k, M.Map k v) v
-lookup = proc (msg, k, mp) -> case M.lookup k mp of
-        Just v  -> returnA -< v
-        Nothing -> fail -< msg
+        y <- f -< x
+        put -< st
+        returnA -< y

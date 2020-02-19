@@ -110,8 +110,8 @@ instance (ArrowChoice c, ArrowFail String c, ArrowWasm WasmType c)
 
     if_ f g = proc (ty, x, y) -> do
         checkType -< (ty, I32)
-        f -< x
-        g -< y -- TODO: this clearly isn't the correct implementation.
+        simulate f -< x
+        g -< y
 
     call = proc f -> do
         tys <- popNVals -< length (fuParams f)

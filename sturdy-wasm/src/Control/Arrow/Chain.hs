@@ -38,12 +38,12 @@ doN_ :: ArrowChoice c => c a b -> c (a, Int) ()
 doN_ f = doN f >>^ (\_ -> ())
 
 doWhile :: ArrowChoice c => c a Bool -> c x y -> c (a, x) [y]
-doWhile b f = proc (a, x) -> do
-    continue <- b -< a
+doWhile cond f = proc (a, x) -> do
+    continue <- cond -< a
     if continue
         then do
             y <- f -< x
-            ys <- doWhile b f -< (a, x)
+            ys <- doWhile cond f -< (a, x)
             returnA -< y:ys
         else returnA -< []
 

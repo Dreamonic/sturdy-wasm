@@ -35,6 +35,7 @@ parseInstruction
   <|> parseBinaryInstr
   <|> parseUnaryInstr
   <|> parseCompareInstr
+  <|> parseNop
   <|> parens parseInstruction
 
 -- Parse instructions that are folded into an S-expression
@@ -133,6 +134,10 @@ parseCompareInstr = try $ do
   i <- keyword "eq"
   return (Compare t Eql)
 
+parseNop :: Parser Instr
+parseNop = do
+  keyword "nop"
+  return Nop
 
 -- make Integer Binary Instr
 makeBinII :: String -> Parser BinOpInstr

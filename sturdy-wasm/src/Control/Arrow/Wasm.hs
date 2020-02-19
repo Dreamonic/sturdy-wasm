@@ -13,6 +13,7 @@ module Control.Arrow.Wasm
     , Closure
     , closVars
     , closFrs
+    , closExits
     , ArrowWasm(..)
     , pushBlock
     , pushLoop
@@ -23,15 +24,18 @@ module Control.Arrow.Wasm
     , getVals
     , getFrAt
     , getTopFr
-    , modifyExitDepth
     , getDepth
+    , addExitDepth
+    , popMaxExitDepth
+    , getMaxExitDepth
     ) where
 
 import Prelude hiding (id)
+import Data.Profunctor
+import qualified Data.Set as S
+import qualified Data.Map as M
 import Control.Category
 import Control.Arrow
-import Data.Profunctor
-import qualified Data.Map as M
 import Control.Lens.TH
 
 import Syntax
@@ -52,7 +56,8 @@ loopFrame :: [WasmType] -> [Instr] -> Frame v
 loopFrame rtys is = Frame [] is rtys (LoopK is)
 
 data Closure v = Closure { _closVars :: M.Map String v
-                         , _closFrs :: [Frame v] }
+                         , _closFrs :: [Frame v]
+                         , _closExits :: S.Set Int }
 
 makeLenses ''Frame
 makeLenses ''Closure
@@ -73,8 +78,9 @@ class (ArrowChoice c, Profunctor c) => ArrowWasm v c | c -> v where
     writeLocal :: c (String, v) ()
     getFunc :: c String Func
     loadModule :: c WasmModule ()
-    getExitDepth :: c () Int
-    setExitDepth :: c Int ()
+    getExitDepths :: c () (S.Set Int)
+    setExitDepths :: c (S.Set Int) ()
+    simulate :: c x y -> c x y
 
 pushBlock :: ArrowWasm v c => c ([WasmType], [Instr]) ()
 pushBlock = proc (rtys, is) -> pushFr -< blockFrame rtys is
@@ -84,16 +90,16 @@ pushLoop = proc (rtys, is) -> pushFr -< loopFrame rtys is
 
 makeClos :: Func -> [v] -> Closure v
 makeClos f vs = let m = M.fromList $ zip (reverse (prmName <$> (fuParams f))) vs
-                in  Closure m [blockFrame (fuRty f) (fuInstrs f)]
+                in  Closure m [blockFrame (fuRty f) (fuInstrs f)] S.empty
 
 popVals :: ArrowWasm v c => c () [v]
 popVals = proc () -> doWhile hasVal popVal -< ((), ())
 
 popNVals :: ArrowWasm v c => c Int [v]
-popNVals = (\n -> ((), n)) ^>> doN popVal
+popNVals = (\n -> ((), n)) ^>> doN popVal >>^ reverse
 
 pushVals :: ArrowWasm v c => c [v] ()
-pushVals = mapA_ pushVal
+pushVals = reverse ^>> mapA_ pushVal
 
 getVals :: ArrowWasm v c => c () [v]
 getVals = proc () -> do
@@ -112,11 +118,6 @@ getFrAt = proc n -> do
 getTopFr :: ArrowWasm v c => c () (Frame v)
 getTopFr = (\_ -> 0) ^>> getFrAt
 
-modifyExitDepth :: ArrowWasm v c => (Int -> Int) -> c () ()
-modifyExitDepth f = proc () -> do
-    d <- getExitDepth -< ()
-    setExitDepth -< f d
-
 getDepth :: ArrowWasm v c => c () Int
 getDepth = proc () -> do
     nonEmpty <- hasFr -< ()
@@ -126,4 +127,24 @@ getDepth = proc () -> do
             d <- getDepth -< ()
             pushFr -< fr
             returnA -< d + 1
-        else returnA -< (-1)
+        else returnA -< -1
+
+addExitDepth :: ArrowWasm v c => c Int ()
+addExitDepth = proc d -> do
+    dSet <- getExitDepths -< ()
+    setExitDepths -< S.insert d dSet
+
+popMaxExitDepth :: ArrowWasm v c => c () Int
+popMaxExitDepth = proc () -> do
+    dSet <- getExitDepths -< ()
+    case S.maxView dSet of
+        Just (d, dSet') -> do
+            setExitDepths -< dSet'
+            returnA -< d
+        Nothing         -> returnA -< -1
+
+getMaxExitDepth :: ArrowWasm v c => c () Int
+getMaxExitDepth = proc () -> do
+    d <- popMaxExitDepth -< ()
+    addExitDepth -< d
+    returnA -< d

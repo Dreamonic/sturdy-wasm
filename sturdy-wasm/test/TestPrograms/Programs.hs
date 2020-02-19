@@ -106,16 +106,32 @@ programLoop = parse
 
 programIfElse = parse
     "(module\n\
-    \(func $foo (param $x i32) (result i32)\n\
+    \(func $foo (param $x i32) (result i32) (result i32)\n\
     \i32.const 0\n\
     \if (result i32)\n\
         \i32.const 2\n\
     \else\n\
         \i32.const 3\n\
     \end\n\
+    \i32.const 1\n\
     \))"
 
 programNestedBlocks = parse
+    "(module\n\
+    \(func $foo (result i32) (result i32) (result i32) (result i32) (result i32)\n\
+    \block (result i32) (result i32) (result i32) (result i32)\n\
+        \i32.const 5\n\
+        \block (result i32) (result i32)\n\
+            \i32.const 4\n\
+            \block (result i32)\n\
+                \i32.const 3\n\
+            \end\n\
+        \end\n\
+        \i32.const 2\n\
+    \end\n\
+    \i32.const 1))"
+
+programNestedBlockBranch = parse
     "(module\n\
     \(func $foo (param $x i32) (result i32)\n\
     \(block\n\
@@ -341,7 +357,7 @@ programInfiniteRecursion = parse
 programIllegalIfCondition = parse
     "(module\n\
     \(func $foo (result i32)\n\
-    \f64.const 1\n\
+    \f64.const 1.0\n\
     \if\n\
         \nop\n\
     \else\n\
@@ -352,7 +368,7 @@ programIllegalIfReturn = parse
     "(module\n\
     \(func $foo (result i32)\n\
     \i32.const 1\n\
-    \if (return i32)\n\
+    \if (result i32)\n\
         \i64.const 1\n\
     \else\n\
         \i32.const 2\n\
@@ -362,9 +378,83 @@ programIllegalElseReturn = parse
     "(module\n\
     \(func $foo (result i32)\n\
     \i32.const 1\n\
-    \if (return i32)\n\
+    \if (result i32)\n\
         \i32.const 1\n\
     \else\n\
         \i32.const 2\n\
         \i32.const 3\n\
     \end))"
+
+programNestedIfs = parse
+    "(module\n\
+    \(func $foo (param $x i32) (param $y i32) (param $z i32) (result i64)\n\
+    \get_local $x\n\
+    \if (result i64)\n\
+        \get_local $y\n\
+        \if (result i64)\n\
+            \i64.const 1\n\
+        \else\n\
+            \i64.const 2\n\
+        \end\n\
+    \else\n\
+        \get_local $y\n\
+        \if (result i64)\n\
+            \get_local $z\n\
+            \if (result i64)\n\
+                \i64.const 3\n\
+            \else\n\
+                \i64.const 4\n\
+            \end\n\
+        \else\n\
+            \i64.const 5\n\
+        \end\n\
+    \end))"
+
+manyIfs :: Int -> String
+manyIfs n
+    | n == 0    = "i64.const 2\n"
+    | even n    = "i32.const 1\n\
+                   \if (result i64)\n" ++ manyIfs (n - 1) ++
+                       "else\n\
+                           \i64.const 2\n\
+                       \end\n"
+    | otherwise =  "i32.const 1\n\
+                   \if (result i64)\n\
+                       \i64.const 2\n\
+                       \else\n" ++ manyIfs (n - 1) ++ "end\n"
+
+programManyNestedIfs = parse $
+    "(module\n\
+    \(func $foo (result i64)\n" ++ manyIfs 100 ++ "))"
+
+programOnePass = parse
+    "(module\n\
+    \(func $foo (result i32)\n\
+    \i32.const 1\n\
+    \if (result i32)\n\
+        \i32.const 1\n\
+    \else\n\
+        \get_local $heya\n\
+    \end\n\
+    \get_local $aloha))"
+
+programOnePassNested = parse
+    "(module\n\
+    \(func $foo (result i32)\n\
+    \i32.const 1\n\
+    \if (result i32)\n\
+        \i32.const 1\n\
+        \if (result i32)\n\
+            \i32.const 1\n\
+            \if (result i32)\n\
+                \i32.const 1\n\
+            \else\n\
+                \get_local $bonjour\n\
+            \end\n\
+        \else\n\
+            \get_local $gutentag\n\
+        \end\n\
+    \else\n\
+        \get_local $hello\n\
+    \end\n\
+    \get_local $hola))"

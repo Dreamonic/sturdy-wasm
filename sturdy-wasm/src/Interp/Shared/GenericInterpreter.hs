@@ -58,18 +58,20 @@ interp = myFix $ \interp' -> proc () -> do
                             interp' -< ()
                         else returnA -< vs
 
-interpPause :: CanInterp v e c => Int -> c () [v]
-interpPause d = proc () -> do
-    setExitDepth -< d
+interpPause :: CanInterp v e c => c Int [v]
+interpPause = proc d -> do
+    addExitDepth -< d
     interp -< ()
 
 myFix :: CanInterp v e c => (c () [v] -> c () [v]) -> c () [v]
-myFix f = f (proc x -> do
-    dAct <- getDepth -< ()
-    dExit <- getExitDepth -< ()
-    if dAct <= dExit
-        then getVals -< ()
-        else myFix f -< x)
+myFix f = f $ proc x -> do
+    dNow <- getDepth -< ()
+    dExit <- getMaxExitDepth -< ()
+    if dNow <= dExit
+        then do
+            popMaxExitDepth -< ()
+            getVals -< ()
+        else myFix f -< x
 
 interpInstr :: CanInterp v e c => c Instr ()
 interpInstr = proc i -> case i of
@@ -89,7 +91,10 @@ interpInstr = proc i -> case i of
 
     If rtys ifBr elBr -> do
         v <- popVal -< ()
-        if_ pushBlock pushBlock -< (v, (rtys, ifBr), (rtys, elBr))
+        d <- getDepth -< ()
+        addExitDepth -< d
+        if_ ifRoute ifRoute -< (v, (rtys, ifBr), (rtys, elBr))
+        returnA -< ()
 
     Call name -> do
         f <- getFunc -< name
@@ -124,7 +129,10 @@ interpInstr = proc i -> case i of
         res <- compare -< (ty, op, v1, v2)
         pushVal -< res
 
-    Nop -> id -< ()
+    Nop -> returnA -< ()
 
     Unreachable -> fail -< fromString
         "Encountered unreachable instruction."
+
+    where ifRoute = proc (rtys, is) -> do pushBlock -< (rtys, is)
+                                          interp -< ()
