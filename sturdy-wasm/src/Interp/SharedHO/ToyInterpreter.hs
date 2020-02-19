@@ -5,8 +5,9 @@ module Interp.SharedHO.ToyInterpreter
 
 import Control.Monad.State
 
-newtype M a = M (State [M ()] a) -- typechecker Reader Int a (niveau)
-    deriving (Functor, Applicative, Monad, MonadState [M ()])
+class Monad m => GenericInterp m where
+    push :: m () -> m ()
+    pop :: Int -> m ()
 
 data Expr
     = Branch Int
@@ -14,27 +15,33 @@ data Expr
     | Seq Expr Expr
     | Nop
 
-interp :: Expr -> M ()
-interp Nop = return ()
-interp (Seq e1 e2) = do
-    interp e1
-    interp e2
-interp (Block e) = push (interp e)
-interp (Branch n) = pop n
+interp :: GenericInterp m => Expr -> m ()
+interp e = case e of
+    Nop       -> return ()
+
+    Seq e1 e2 -> do
+        interp e1
+        interp e2
+
+    Block e   -> push (interp e)
+
+    Branch n  -> pop n
 
 
-push :: (M ()) -> M ()
-push f = do
-    st <- get
-    put (f:st)
-    f
+newtype Concrete a = Concrete (State [Concrete ()] a) -- typechecker Reader Int a (niveau)
+    deriving (Functor, Applicative, Monad, MonadState [Concrete ()])
 
-pop :: Int -> M ()
-pop n = do
-    st <- get
-    let st' = drop n st
-    put (drop 1 st')
-    head st'
+instance GenericInterp Concrete where
+    push f = do
+        st <- get
+        put (f:st)
+        f
+
+    pop n = do
+        st <- get
+        let st' = drop n st
+        put (drop 1 st')
+        head st'
 
 
 -- type checker door alleen M en push en pop aan te passen
