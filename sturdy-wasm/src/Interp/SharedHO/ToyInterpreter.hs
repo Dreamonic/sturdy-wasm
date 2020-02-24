@@ -1,47 +1,116 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Interp.SharedHO.ToyInterpreter
 () where
 
+import Prelude hiding (seq, const)
+import Control.Monad.Identity
 import Control.Monad.State
-
-class Monad m => GenericInterp m where
-    push :: m () -> m ()
-    pop :: Int -> m ()
+import Control.Monad.Reader
+import Control.Monad.Fail
+import Control.Monad.Except
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.State hiding (get, put)
+import Control.Monad.Trans.Reader hiding (ask, local)
 
 data Expr
     = Branch Int
     | Block Expr
     | Seq Expr Expr
-    | Nop
+    | Const Int
+    | Add Expr Expr
+    | If Expr Expr Expr
 
-interp :: GenericInterp m => Expr -> m ()
+interp :: (Interp m a, MonadError String m) => Expr -> m a
 interp e = case e of
-    Nop       -> return ()
+    Block e -> push (interp e)
 
-    Seq e1 e2 -> do
-        interp e1
-        interp e2
+    Branch n -> pop n
 
-    Block e   -> push (interp e)
+    Seq e1 e2 -> snd <$> seq (interp e1) (interp e2)
 
-    Branch n  -> pop n
+    Const n -> const n
 
+    Add e1 e2 -> do
+        v1 <- interp e1
+        v2 <- interp e2
+        add v1 v2
 
-newtype Concrete a = Concrete (State [Concrete ()] a) -- typechecker Reader Int a (niveau)
-    deriving (Functor, Applicative, Monad, MonadState [Concrete ()])
+    If e t f -> if_ (interp e) (interp t) (interp f)
 
-instance GenericInterp Concrete where
+-- | Interface over Monad m and value type a that allows interpretation
+class (Monad m) => Interp m a where
+    push :: m a -> m a
+    pop :: Int -> m a
+    const :: Int -> m a
+    add :: a -> a -> m a
+    if_ :: m a -> m a -> m a -> m a
+
+    seq :: m a -> m a -> m (a, a)
+    seq m1 m2 = do
+        v1 <- m1
+        v2 <- m2
+        return (v1, v2)
+
+-- Concrete interpreter
+
+newtype Concrete a = Concrete { runConcrete :: StateT [Concrete Int] (ExceptT String Identity) a }
+    deriving (Functor, Applicative, Monad, MonadState [Concrete Int], MonadError String)
+
+instance Interp Concrete Int where
     push f = do
-        st <- get
-        put (f:st)
+        state <- get
+        put (f:state)
         f
 
     pop n = do
-        st <- get
-        let st' = drop n st
-        put (drop 1 st')
-        head st'
+        state <- get
+        let state' = drop n state
+        if null state' then
+            throwError $ "Can't break " ++ (show n)
+        else do
+            put (drop 1 state')
+            head state'
 
+    const = return
 
--- type checker door alleen M en push en pop aan te passen
+    add v1 v2 = return (v1 + v2)
+
+    if_ c t f = do
+        c' <- c
+        if c' == 0 then f else t
+
+run :: Expr -> Either String Int
+run e = fst <$> runExcept
+            (runStateT
+                (runConcrete
+                    ((interp :: Expr -> Concrete Int) e)) [])
+
+-- Interpreter that only checks if block structure is correct
+
+newtype Checker a = Checker { runChecker :: (ReaderT Int (ExceptT String Identity) a) }
+    deriving (Functor, Applicative, Monad, MonadReader Int, MonadError String)
+
+instance Interp Checker () where
+    push f = local (+1) f
+
+    pop n = do
+        level <- ask
+        if n >= level then
+            throwError $ "Can't break " ++ (show n)
+        else
+            return ()
+
+    const _ = return ()
+
+    add _ _ = return ()
+
+    if_ c t f = c >> t >> f
+
+check :: Expr -> Either String ()
+check e = runExcept
+            (runReaderT
+                (runChecker
+                    ((interp :: Expr -> Checker ()) e)) 0)
