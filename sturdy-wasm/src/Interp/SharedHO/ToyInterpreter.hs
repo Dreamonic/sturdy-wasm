@@ -9,11 +9,7 @@ import Prelude hiding (seq, const)
 import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Fail
 import Control.Monad.Except
-import Control.Monad.Trans.Except
-import Control.Monad.Trans.State hiding (get, put)
-import Control.Monad.Trans.Reader hiding (ask, local)
 
 data Expr
     = Branch Int
@@ -61,18 +57,18 @@ newtype Concrete a = Concrete { runConcrete :: StateT [Concrete Int] (ExceptT St
 
 instance Interp Concrete Int where
     push f = do
-        state <- get
-        put (f:state)
+        st <- get
+        put (f:st)
         f
 
     pop n = do
-        state <- get
-        let state' = drop n state
-        if null state' then
+        st <- get
+        let st' = drop n st
+        if null st' then
             throwError $ "Can't break " ++ (show n)
         else do
-            put (drop 1 state')
-            head state'
+            put (drop 1 st')
+            head st'
 
     const = return
 
