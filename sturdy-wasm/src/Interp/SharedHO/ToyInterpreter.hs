@@ -11,9 +11,6 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Fail
 import Control.Monad.Except
-import Control.Monad.Trans.Except
-import Control.Monad.Trans.State hiding (get, put)
-import Control.Monad.Trans.Reader hiding (ask, local)
 
 data Expr
     = Branch Int
