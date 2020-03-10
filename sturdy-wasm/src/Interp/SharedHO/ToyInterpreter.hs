@@ -1,32 +1,40 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Interp.SharedHO.ToyInterpreter
-() where
+    ( run
+    , check
+    ) where
 
-import Prelude hiding (seq, const)
+import qualified Data.Map as M
+import Prelude hiding (const, lookup)
 import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Fail
 import Control.Monad.Except
 
 data Expr
     = Branch Int
     | Block Expr
+    | Loop Expr
     | Seq Expr Expr
     | Const Int
     | Add Expr Expr
     | If Expr Expr Expr
+    | Assign String Expr
+    | Var String
 
-interp :: (Interp m a, MonadError String m) => Expr -> m a
-interp e = case e of
-    Block e -> push (interp e)
+interp :: Interp m a => Expr -> m a
+interp expr = case expr of
+    Branch n -> popBlock n
 
-    Branch n -> pop n
+    Block e -> pushBlock (const 0) (interp e)
 
-    Seq e1 e2 -> snd <$> seq (interp e1) (interp e2)
+    Loop e -> pushBlock (interp e) (interp e)
+
+    Seq e1 e2 -> interp e1 >> interp e2
 
     Const n -> const n
 
@@ -37,66 +45,74 @@ interp e = case e of
 
     If e t f -> if_ (interp e) (interp t) (interp f)
 
--- | Interface over Monad m and value type a that allows interpretation
-class (Monad m) => Interp m a where
-    push :: m a -> m a
-    pop :: Int -> m a
+    Assign var e -> assign var (interp e)
+
+    Var var -> lookup var
+
+
+class (Monad m) => Interp m a | m -> a where
+    pushBlock :: m a -> m a -> m a
+    popBlock :: Int -> m a
     const :: Int -> m a
     add :: a -> a -> m a
     if_ :: m a -> m a -> m a -> m a
+    assign :: String -> m a -> m a
+    lookup :: String -> m a
 
-    seq :: m a -> m a -> m (a, a)
-    seq m1 m2 = do
-        v1 <- m1
-        v2 <- m2
-        return (v1, v2)
 
--- Concrete interpreter
-
-newtype Concrete a = Concrete { runConcrete :: StateT [Concrete Int] (ExceptT String Identity) a }
-    deriving (Functor, Applicative, Monad, MonadState [Concrete Int], MonadError String)
+newtype Concrete a = Concrete
+    { runConcrete :: StateT (M.Map String Int) (ExceptT (Either String Int)
+        Identity) a }
+    deriving (Functor, Applicative, Monad, MonadState (M.Map String Int),
+        MonadError (Either String Int))
 
 instance Interp Concrete Int where
-    push f = do
-        state <- get
-        put (f:state)
-        f
+    pushBlock br adv = do
+        catchError adv $ \e -> case e of
+            Right n  -> if n <= 0
+                then pushBlock br br
+                else throwError $ Right $ n - 1
+            Left msg -> throwError $ Left msg
 
-    pop n = do
-        state <- get
-        let state' = drop n state
-        if null state' then
-            throwError $ "Can't break " ++ (show n)
-        else do
-            put (drop 1 state')
-            head state'
+    popBlock n = throwError $ Right n
 
     const = return
 
-    add v1 v2 = return (v1 + v2)
+    add v1 v2 = return $ v1 + v2
 
     if_ c t f = do
         c' <- c
         if c' == 0 then f else t
 
-run :: Expr -> Either String Int
+    assign var f = do
+        v <- f
+        st <- get
+        put $ M.insert var v st
+        f
+
+    lookup var = do
+        st <- get
+        case M.lookup var st of
+            Just v  -> return v
+            Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
+
+run :: Expr -> Either (Either String Int) Int
 run e = fst <$> runExcept
-            (runStateT
-                (runConcrete
-                    ((interp :: Expr -> Concrete Int) e)) [])
+                    (runStateT
+                        (runConcrete
+                            ((interp :: Expr -> Concrete Int) e)) M.empty)
 
--- Interpreter that only checks if block structure is correct
 
-newtype Checker a = Checker { runChecker :: (ReaderT Int (ExceptT String Identity) a) }
+newtype DepthChecker a = DepthChecker { runDepthChecker :: (ReaderT Int (ExceptT String Identity) a) }
     deriving (Functor, Applicative, Monad, MonadReader Int, MonadError String)
 
-instance Interp Checker () where
-    push f = local (+1) f
+instance Interp DepthChecker () where
+    pushBlock _ adv = local (+1) adv
 
-    pop n = do
+    popBlock n = do
         level <- ask
         if n >= level then
-            throwError $ "Can't break " ++ (show n)
+            throwError $ "Can't break " ++ show n
         else
             return ()
 
@@ -106,8 +122,12 @@ instance Interp Checker () where
 
     if_ c t f = c >> t >> f
 
+    assign _ _ = return ()
+
+    lookup _ = return ()
+
 check :: Expr -> Either String ()
 check e = runExcept
             (runReaderT
-                (runChecker
-                    ((interp :: Expr -> Checker ()) e)) 0)
+                (runDepthChecker
+                    ((interp :: Expr -> DepthChecker ()) e)) 0)
