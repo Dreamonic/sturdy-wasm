@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Interp.SharedHO.ToyInterpreter
     ( run
@@ -59,10 +60,8 @@ class (Monad m) => Interp m a | m -> a where
     assign :: String -> m a -> m a
     lookup :: String -> m a
 
-
 newtype Concrete a = Concrete
-    { runConcrete :: StateT (M.Map String Int) (ExceptT (Either String Int)
-        Identity) a }
+    { runConcrete :: ExceptT (Either String Int) (State (M.Map String Int)) a }
     deriving (Functor, Applicative, Monad, MonadState (M.Map String Int),
         MonadError (Either String Int))
 
@@ -97,10 +96,10 @@ instance Interp Concrete Int where
             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
 
 run :: Expr -> Either (Either String Int) Int
-run e = fst <$> runExcept
-                    (runStateT
-                        (runConcrete
-                            ((interp :: Expr -> Concrete Int) e)) M.empty)
+run e = fst $ runState
+                  (runExceptT
+                      (runConcrete
+                          ((interp :: Expr -> Concrete Int) e))) M.empty
 
 
 newtype DepthChecker a = DepthChecker { runDepthChecker :: (ReaderT Int (ExceptT String Identity) a) }
