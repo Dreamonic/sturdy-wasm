@@ -30,3 +30,5 @@ program2 = do
     modify (+1)
     catchError (do { modify (+2); throwError "woops" }) (\_ -> return ())
     modify (+4)
+
+data Tree a = Node Tree Tree a | Leaf

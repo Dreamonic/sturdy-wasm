@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Interp.SharedHO.ToyInterpreter
     ( run
@@ -10,8 +11,8 @@ module Interp.SharedHO.ToyInterpreter
     ) where
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Prelude hiding (const, lookup)
-import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -44,9 +45,13 @@ interp expr = case expr of
         v2 <- interp e2
         add v1 v2
 
-    If e t f -> if_ (interp e) (interp t) (interp f)
+    If e t f -> do
+        c <- interp e
+        if_ c (interp t) (interp f)
 
-    Assign var e -> assign var (interp e)
+    Assign var e -> do
+        v <- interp e
+        assign var v
 
     Var var -> lookup var
 
@@ -56,8 +61,8 @@ class (Monad m) => Interp m a | m -> a where
     popBlock :: Int -> m a
     const :: Int -> m a
     add :: a -> a -> m a
-    if_ :: m a -> m a -> m a -> m a
-    assign :: String -> m a -> m a
+    if_ :: a -> m a -> m a -> m a
+    assign :: String -> a -> m a
     lookup :: String -> m a
 
 newtype Concrete a = Concrete
@@ -79,15 +84,12 @@ instance Interp Concrete Int where
 
     add v1 v2 = return $ v1 + v2
 
-    if_ c t f = do
-        c' <- c
-        if c' == 0 then f else t
+    if_ c t f = if c == 0 then f else t
 
-    assign var f = do
-        v <- f
+    assign var v = do
         st <- get
         put $ M.insert var v st
-        f
+        return v
 
     lookup var = do
         st <- get
@@ -102,7 +104,7 @@ run e = fst $ runState
                           ((interp :: Expr -> Concrete Int) e))) M.empty
 
 
-newtype DepthChecker a = DepthChecker { runDepthChecker :: (ReaderT Int (ExceptT String Identity) a) }
+newtype DepthChecker a = DepthChecker { runDepthChecker :: (ReaderT Int (Except String) a) }
     deriving (Functor, Applicative, Monad, MonadReader Int, MonadError String)
 
 instance Interp DepthChecker () where
@@ -119,7 +121,7 @@ instance Interp DepthChecker () where
 
     add _ _ = return ()
 
-    if_ c t f = c >> t >> f
+    if_ _ t f = t >> f
 
     assign _ _ = return ()
 
@@ -130,3 +132,46 @@ check e = runExcept
             (runReaderT
                 (runDepthChecker
                     ((interp :: Expr -> DepthChecker ()) e)) 0)
+
+newtype ReachDef a = ReachDef
+    { runReachDef :: ExceptT (Either String Int) (State (M.Map String (S.Set Int))) a }
+    deriving (Functor, Applicative, Monad, MonadState (M.Map String (S.Set Int)),
+        MonadError (Either String Int))
+
+instance Interp ReachDef (S.Set Int) where
+    pushBlock br adv = do
+        catchError adv $ \e -> case e of
+            Right n  -> if n <= 0
+                then pushBlock br br
+                else throwError $ Right $ n - 1
+            Left msg -> throwError $ Left msg
+
+    popBlock n = throwError $ Right n
+
+    const n = return $ S.singleton n
+
+    add v1 v2 = return $ S.map (\(x, y) -> x + y) (S.cartesianProduct v1 v2)
+
+    if_ c t f = if
+        | S.notMember 0 c -> f
+        | S.size c == 1   -> t
+        | otherwise       -> do
+            st <- get
+            v1 <- t
+            st1 <- get
+            put st
+            v2 <- f
+            st2 <- get
+            put $ M.unionWith S.union st1 st2
+            return $ v1 `S.union` v2
+
+    assign var v = do
+        st <- get
+        put $ M.insert var v st
+        return v
+
+    lookup var = do
+        st <- get
+        case M.lookup var st of
+            Just v  -> return v
+            Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
