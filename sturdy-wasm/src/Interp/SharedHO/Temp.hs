@@ -8,6 +8,8 @@ module Interp.SharedHO.Temp where
 
 import Control.Monad.State
 import Control.Monad.Except
+import Data.Sequence as S
+import System.Clock
 
 type M = ExceptT String (State Int)
 
@@ -31,4 +33,55 @@ program2 = do
     catchError (do { modify (+2); throwError "woops" }) (\_ -> return ())
     modify (+4)
 
-data Tree a = Node Tree Tree a | Leaf
+data Tree a = Node a (Tree a) (Tree a) | Leaf
+
+-- programTree =    ()
+--               /     \
+--            (+1)       ()
+--            / \      /   \
+--         (+2) leaf loop  (+4)
+--         /  \            /  \
+--      loop  leaf      loop  leaf
+
+type C a = State Int a
+
+programTree :: Tree (C ())
+programTree =
+    Node (return ())
+        (Node (modify (+1)) (Node (modify (+2)) programTree Leaf) Leaf)
+            (Node (return ()) programTree (Node (modify (+4)) programTree Leaf))
+
+-- program that finds the first occurrence of a certain int in the state
+valOccur :: Tree (C ()) -> Int -> Int
+valOccur tree v = valOccur' v $ singleton (return (), tree, 0)
+
+valOccur' :: Int -> Seq (C (), Tree (C ()), Int) -> Int
+valOccur' v queue = case queue of
+    (c, tree, d) :<| rest -> case tree of
+        Node cNew left right -> valOccur' v $
+            rest :|> (c >> cNew, left, d + 1) :|> (c >> cNew, right, d + 1)
+        Leaf -> if (execState c 0) == v
+            then d
+            else valOccur' v rest
+    Empty -> (-1)
+
+valOccur2 :: Tree (C ()) -> Int -> Int
+valOccur2 tree v = valOccur2' v $ singleton (0, tree, 0)
+
+valOccur2' :: Int -> Seq (Int, Tree (C ()), Int) -> Int
+valOccur2' v queue = case queue of
+    (st, tree, d) :<| rest -> case tree of
+        Node c left right -> valOccur2' v $
+            rest :|> (execState c st, left, d + 1)
+                 :|> (execState c st, right, d + 1)
+        Leaf -> if st == v
+            then d
+            else valOccur2' v rest
+    Empty -> (-1)
+
+stopwatch :: Show a => a -> IO ()
+stopwatch c = do
+    spec1 <- getTime Monotonic
+    putStrLn $ show c
+    spec2 <- getTime Monotonic
+    putStrLn $ show $ nsec spec2 - nsec spec1
