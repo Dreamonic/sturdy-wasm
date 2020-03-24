@@ -6,37 +6,74 @@
 {-# LANGUAGE MultiWayIf #-}
 
 module Interp.SharedHO.ToyInterpreter
-    ( run
-    , check
-    ) where
+where
 
 import qualified Data.Map as M
-import qualified Data.Set as S
 import Prelude hiding (const, lookup)
-import Control.Monad.State
-import Control.Monad.Reader
-import Control.Monad.Except
+import Control.Monad.State hiding (fix, join, state)
+import Control.Monad.Reader hiding (fix, join)
+import Control.Monad.Except hiding (fix, join)
+
+import qualified Interp.SharedHO.RDSet as RD
+import Interp.SharedHO.Joinable
 
 data Expr
     = Branch Int
     | Block Expr
     | Loop Expr
-    | Seq Expr Expr
+    | Seq [Expr]
     | Const Int
     | Add Expr Expr
     | If Expr Expr Expr
     | Assign String Expr
     | Var String
 
-interp :: Interp m a => Expr -> m a
+
+-- Don't like the taste of fuel
+
+-- fix :: (a -> a) -> a
+-- fix f = f (fix f)
+--
+--
+-- data Fuel a = Fuel { runFuel :: Int -> Maybe a }
+--
+-- returnF :: a -> Fuel a
+-- returnF a = Fuel $ \_ -> Just a
+--
+-- bindF :: Fuel a -> (a -> Fuel b) -> Fuel b
+-- bindF (Fuel f) g = Fuel $ \n -> case f n of
+--     Just a  -> runFuel (g a) n
+--     Nothing -> Nothing
+--
+-- fixF :: (a -> Fuel a) -> Fuel a
+-- fixF f = Fuel $ \n -> if n <= 0
+--     then Nothing
+--     else case runFuel (fixF f) (n - 1) of
+--         Just a  -> runFuel (f a) n
+--         Nothing -> Nothing
+
+
+class Monad m => Interp m a | m -> a where
+    pushBlock :: m a -> m a -> m a
+    popBlock :: Int -> m a
+    const :: Int -> m a
+    add :: a -> a -> m a
+    if_ :: a -> m a -> m a -> m a
+    assign :: String -> a -> m a
+    lookup :: String -> m a
+
+class Fix c where
+    fix :: (c -> c) -> c
+
+interp :: (Interp m a, Fix (m a)) => Expr -> m a
 interp expr = case expr of
     Branch n -> popBlock n
 
     Block e -> pushBlock (const 0) (interp e)
 
-    Loop e -> pushBlock (interp e) (interp e)
+    Loop e -> fix $ \lp -> pushBlock lp (interp e)
 
-    Seq e1 e2 -> interp e1 >> interp e2
+    Seq es -> foldl (>>) (const 0) (interp <$> es)
 
     Const n -> const n
 
@@ -56,15 +93,6 @@ interp expr = case expr of
     Var var -> lookup var
 
 
-class (Monad m) => Interp m a | m -> a where
-    pushBlock :: m a -> m a -> m a
-    popBlock :: Int -> m a
-    const :: Int -> m a
-    add :: a -> a -> m a
-    if_ :: a -> m a -> m a -> m a
-    assign :: String -> a -> m a
-    lookup :: String -> m a
-
 newtype Concrete a = Concrete
     { runConcrete :: ExceptT (Either String Int) (State (M.Map String Int)) a }
     deriving (Functor, Applicative, Monad, MonadState (M.Map String Int),
@@ -74,7 +102,7 @@ instance Interp Concrete Int where
     pushBlock br adv = do
         catchError adv $ \e -> case e of
             Right n  -> if n <= 0
-                then pushBlock br br
+                then br
                 else throwError $ Right $ n - 1
             Left msg -> throwError $ Left msg
 
@@ -97,6 +125,9 @@ instance Interp Concrete Int where
             Just v  -> return v
             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
 
+instance Fix (Concrete Int) where
+    fix f = f (fix f)
+
 run :: Expr -> Either (Either String Int) Int
 run e = fst $ runState
                   (runExceptT
@@ -104,7 +135,8 @@ run e = fst $ runState
                           ((interp :: Expr -> Concrete Int) e))) M.empty
 
 
-newtype DepthChecker a = DepthChecker { runDepthChecker :: (ReaderT Int (Except String) a) }
+newtype DepthChecker a =
+    DepthChecker { runDepthChecker :: (ReaderT Int (Except String) a) }
     deriving (Functor, Applicative, Monad, MonadReader Int, MonadError String)
 
 instance Interp DepthChecker () where
@@ -127,51 +159,93 @@ instance Interp DepthChecker () where
 
     lookup _ = return ()
 
+instance Fix (DepthChecker ()) where
+    fix f = f (fix f)
+
 check :: Expr -> Either String ()
 check e = runExcept
             (runReaderT
                 (runDepthChecker
                     ((interp :: Expr -> DepthChecker ()) e)) 0)
 
+data SavedState a = SavedState { state :: a
+                               , image :: a }
+
+type ReachDefState = SavedState (M.Map String (RD.Set Int))
+
 newtype ReachDef a = ReachDef
-    { runReachDef :: ExceptT (Either String Int) (State (M.Map String (S.Set Int))) a }
-    deriving (Functor, Applicative, Monad, MonadState (M.Map String (S.Set Int)),
+    { runReachDef :: ExceptT (Either String Int) (State ReachDefState) a }
+    deriving (Functor, Applicative, Monad, MonadState ReachDefState,
         MonadError (Either String Int))
 
-instance Interp ReachDef (S.Set Int) where
+getSt :: ReachDef (M.Map String (RD.Set Int))
+getSt = do
+    st <- get
+    return $ state st
+
+getImg :: ReachDef (M.Map String (RD.Set Int))
+getImg = do
+    st <- get
+    return $ image st
+
+putSt :: M.Map String (RD.Set Int) -> ReachDef ()
+putSt st = do
+    img <- getImg
+    put $ SavedState st img
+
+putImg :: M.Map String (RD.Set Int) -> ReachDef ()
+putImg img = do
+    st <- getSt
+    put $ SavedState st img
+
+instance Joinable a => Joinable (ReachDef a) where
+    join f g = do
+        st <- getSt
+        x <- f
+        st1 <- getSt
+        putSt st
+        y <- g
+        st2 <- getSt
+        putSt $ st1 `join` st2
+        return $ x `join` y
+
+instance Interp ReachDef (RD.Set Int) where
     pushBlock br adv = do
         catchError adv $ \e -> case e of
             Right n  -> if n <= 0
-                then pushBlock br br
+                then br
                 else throwError $ Right $ n - 1
             Left msg -> throwError $ Left msg
 
     popBlock n = throwError $ Right n
 
-    const n = return $ S.singleton n
+    const n = return $ RD.singleton n
 
-    add v1 v2 = return $ S.map (\(x, y) -> x + y) (S.cartesianProduct v1 v2)
+    add v1 v2 = return $ RD.add v1 v2
 
-    if_ c t f = if
-        | S.notMember 0 c -> f
-        | S.size c == 1   -> t
-        | otherwise       -> do
-            st <- get
-            v1 <- t
-            st1 <- get
-            put st
-            v2 <- f
-            st2 <- get
-            put $ M.unionWith S.union st1 st2
-            return $ v1 `S.union` v2
+    if_ c t f = RD.if_ c t f
 
     assign var v = do
-        st <- get
-        put $ M.insert var v st
+        st <- getSt
+        putSt $ M.insert var v st
         return v
 
     lookup var = do
-        st <- get
+        st <- getSt
         case M.lookup var st of
             Just v  -> return v
             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
+
+instance Fix (ReachDef (RD.Set Int)) where
+    fix f = do
+        st <- getSt
+        img <- getImg
+        putImg st
+        if st == img then return RD.Top else f (fix f)
+
+runRD :: Expr -> Either (Either String Int) (RD.Set Int)
+runRD e = fst $ runState
+                    (runExceptT
+                        (runReachDef
+                            ((interp :: Expr -> ReachDef (RD.Set Int)) e)))
+                                (SavedState M.empty M.empty)

@@ -85,3 +85,24 @@ stopwatch c = do
     putStrLn $ show c
     spec2 <- getTime Monotonic
     putStrLn $ show $ nsec spec2 - nsec spec1
+
+fixfix :: (a -> a) -> a
+fixfix f = f (fixfix f)
+
+fact :: (((Int -> Int) -> (Int -> Int)) -> (Int -> Int)) -> Int -> Int
+fact fix = (fix $ \fact' n -> if n <= 0 then 1 else n * (fact' $ n - 1))
+
+-- idea
+-- when we have some computation:
+--  f = do {g; h;}
+-- then we want the computation to still terminate even if g or h are
+-- potentially infinite.
+
+-- class BoundedDomain a where
+--     top :: a -> Bool
+--     bottom :: a -> Bool
+--
+-- class MonadState s m => MonadTerminate s m where
+--     haltWhen :: (s -> Bool) -> m a -> m a
+--
+-- data Terminate a = Terminate
