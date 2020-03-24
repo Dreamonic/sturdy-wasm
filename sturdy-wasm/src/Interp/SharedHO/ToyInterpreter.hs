@@ -16,6 +16,7 @@ import Control.Monad.Except hiding (fix, join)
 
 import qualified Interp.SharedHO.RDSet as RD
 import Interp.SharedHO.Joinable
+import Interp.SharedHO.BoolVal
 
 data Expr
     = Branch Int
@@ -24,10 +25,16 @@ data Expr
     | Seq [Expr]
     | Const Int
     | Add Expr Expr
+    | Lt Expr Expr
     | If Expr Expr Expr
     | Assign String Expr
     | Var String
 
+instance ToBool Int where
+    toBool = (/=) 0
+
+instance FromBool Int where
+    fromBool b = if b then 1 else 0
 
 -- Don't like the taste of fuel
 
@@ -58,6 +65,7 @@ class Monad m => Interp m a | m -> a where
     popBlock :: Int -> m a
     const :: Int -> m a
     add :: a -> a -> m a
+    lt :: a -> a -> m a
     if_ :: a -> m a -> m a -> m a
     assign :: String -> a -> m a
     lookup :: String -> m a
@@ -81,6 +89,11 @@ interp expr = case expr of
         v1 <- interp e1
         v2 <- interp e2
         add v1 v2
+
+    Lt e1 e2 -> do
+        v1 <- interp e1
+        v2 <- interp e2
+        lt v1 v2
 
     If e t f -> do
         c <- interp e
@@ -112,7 +125,9 @@ instance Interp Concrete Int where
 
     add v1 v2 = return $ v1 + v2
 
-    if_ c t f = if c == 0 then f else t
+    lt v1 v2 = return $ fromBool $ v1 < v2
+
+    if_ c t f = if toBool c then t else f
 
     assign var v = do
         st <- get
@@ -150,6 +165,8 @@ instance Interp DepthChecker () where
             return ()
 
     const _ = return ()
+
+    lt _ _ = return ()
 
     add _ _ = return ()
 
@@ -223,6 +240,8 @@ instance Interp ReachDef (RD.Set Int) where
 
     add v1 v2 = return $ RD.add v1 v2
 
+    lt v1 v2 = return $ RD.lt v1 v2
+
     if_ c t f = RD.if_ c t f
 
     assign var v = do
@@ -240,8 +259,13 @@ instance Fix (ReachDef (RD.Set Int)) where
     fix f = do
         st <- getSt
         img <- getImg
-        putImg st
-        if st == img then return RD.Top else f (fix f)
+        if st == img
+            then return RD.Top
+            else do
+                let st' = st `join` img
+                putSt st'
+                putImg st'
+                f (fix f)
 
 runRD :: Expr -> Either (Either String Int) (RD.Set Int)
 runRD e = fst $ runState
