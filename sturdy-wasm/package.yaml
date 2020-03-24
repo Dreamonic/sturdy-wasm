@@ -33,6 +33,7 @@ library:
     - text
     - sturdy-lib
     - mtl
+    - clock # TEMP
 
 executables:
   sturdy-wasm-exe:
