@@ -36,30 +36,6 @@ instance ToBool Int where
 instance FromBool Int where
     fromBool b = if b then 1 else 0
 
--- Don't like the taste of fuel
-
--- fix :: (a -> a) -> a
--- fix f = f (fix f)
---
---
--- data Fuel a = Fuel { runFuel :: Int -> Maybe a }
---
--- returnF :: a -> Fuel a
--- returnF a = Fuel $ \_ -> Just a
---
--- bindF :: Fuel a -> (a -> Fuel b) -> Fuel b
--- bindF (Fuel f) g = Fuel $ \n -> case f n of
---     Just a  -> runFuel (g a) n
---     Nothing -> Nothing
---
--- fixF :: (a -> Fuel a) -> Fuel a
--- fixF f = Fuel $ \n -> if n <= 0
---     then Nothing
---     else case runFuel (fixF f) (n - 1) of
---         Just a  -> runFuel (f a) n
---         Nothing -> Nothing
-
-
 class Monad m => Interp m a | m -> a where
     pushBlock :: m a -> m a -> m a
     popBlock :: Int -> m a
