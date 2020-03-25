@@ -25,9 +25,6 @@ instance Ord a => Joinable (Set a) where
 instance FromBool a => FromBool (Set a) where
     fromBool b = singleton $ fromBool b
 
-instance Ord v => Joinable (M.Map String (Set v)) where
-    join st1 st2 = M.unionWith join st1 st2
-
 add :: (Ord a, Num a) => Set a -> Set a -> Set a
 add (Mid s1) (Mid s2) = fromSet $ S.map (\(x, y) -> x + y)
     (S.cartesianProduct s1 s2)
