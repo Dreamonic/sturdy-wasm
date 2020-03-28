@@ -32,6 +32,7 @@ data Expr
     | If Expr Expr
     | Assign String
     | Var String
+    | Nop
 
 instance ToBool Int where
     toBool = (/=) 0
@@ -91,6 +92,8 @@ interp expr = case expr of
     Var var -> do
         v <- lookup var
         push v
+
+    Nop -> return ()
 
 
 data ToyState v = ToyState { _variables :: M.Map String v
@@ -204,39 +207,13 @@ check e = runExcept
                     ((interp :: Expr -> DepthChecker ()) e)) 0)
 
 
-
--- Reaching Definitions
-
-data SavedState a = SavedState { _state :: a
-                               , _image :: a } deriving (Show, Eq)
-
-makeLenses ''SavedState
-
-type ReachDefState = SavedState (ToyState (RD.Set Int))
+type ReachDefState = ToyState (RD.Set Int)
 
 newtype ReachDef a = ReachDef
-    { runReachDef :: ExceptT (Either String Int) (State ReachDefState) a }
+    { runReachDef :: ExceptT (Either String Int) (ReaderT ReachDefState
+        (State ReachDefState)) a }
     deriving (Functor, Applicative, Monad, MonadState ReachDefState,
-        MonadError (Either String Int))
-
-getSt :: ReachDef (ToyState (RD.Set Int))
-getSt = do
-    st <- get
-    return $ view state st
-
-getImg :: ReachDef (ToyState (RD.Set Int))
-getImg = do
-    st <- get
-    return $ view image st
-
-putSt :: ToyState (RD.Set Int) -> ReachDef ()
-putSt st = modify $ set state st
-
-putImg :: ToyState (RD.Set Int) -> ReachDef ()
-putImg img = modify $ set image img
-
-modifySt :: (ToyState (RD.Set Int) -> ToyState (RD.Set Int)) -> ReachDef ()
-modifySt f = modify $ over state f
+        MonadReader ReachDefState, MonadError (Either String Int))
 
 instance Joinable a => Joinable (ToyState a) where
     join st1 st2 = over stack (join $ view stack st2) $
@@ -244,26 +221,26 @@ instance Joinable a => Joinable (ToyState a) where
 
 instance Joinable a => Joinable (ReachDef a) where
     join f g = do
-        st <- getSt
+        st <- get
         x <- f
-        st1 <- getSt
-        putSt st
+        st1 <- get
+        put st
         y <- g
-        st2 <- getSt
-        putSt $ st1 `join` st2
+        st2 <- get
+        put $ st1 `join` st2
         return $ x `join` y
 
 instance Interp ReachDef (RD.Set Int) where
     pushBlock br adv = do
-        st1 <- getSt
-        putSt $ set stack [] st1
+        st1 <- get
+        put $ set stack [] st1
         catchError adv $ \e -> case e of
             Right n  -> if n <= 0
                 then br
                 else throwError $ Right $ n - 1
             Left msg -> throwError $ Left msg
-        st2 <- getSt
-        putSt $ over stack (++ view stack st1) st2
+        st2 <- get
+        put $ over stack (++ view stack st1) st2
 
     popBlock n = throwError $ Right n
 
@@ -276,42 +253,40 @@ instance Interp ReachDef (RD.Set Int) where
     if_ c t f = RD.if_ c t f
 
     assign var v = do
-        st <- getSt
-        putSt $ over variables (M.insert var v) st
+        modify $ over variables (M.insert var v)
 
     lookup var = do
-        st <- getSt
+        st <- get
         case M.lookup var (view variables st) of
             Just v  -> return v
             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
 
-    push v = modifySt $ over stack (v:)
+    push v = modify $ over stack (v:)
 
     pop = do
-        st <- getSt
+        st <- get
         case view stack st of
             v:_ -> do
-                modifySt $ over stack tail
+                modify $ over stack tail
                 return v
             []  -> throwError $ Left $ "Tried to pop value from empty stack."
 
 
 instance Fix (ReachDef ()) where
     fix f = do
-        st <- getSt
-        img <- getImg
+        st <- get
+        img <- ask
         if st == img
             then return ()
             else do
                 let st' = st `join` img
-                putSt st'
-                putImg st'
-                f (fix f)
+                put st'
+                local (\_ -> st') $ f (fix f)
 
 runRD :: Expr -> (Either (Either String Int) (), ToyState (RD.Set Int))
-runRD e = overSnd (view state) $ runState
+runRD e = runState
+              (runReaderT
                   (runExceptT
                       (runReachDef
                           ((interp :: Expr -> ReachDef ()) e)))
-                              (SavedState emptyToySt emptyToySt)
-    where overSnd f (a, b) = (a, f b)
+                              emptyToySt) emptyToySt
