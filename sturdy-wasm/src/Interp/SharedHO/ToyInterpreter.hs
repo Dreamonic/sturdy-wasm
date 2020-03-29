@@ -4,6 +4,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Interp.SharedHO.ToyInterpreter
 where
@@ -13,6 +14,8 @@ import Prelude hiding (const, lookup)
 import Control.Monad.State hiding (fix, join, state)
 import Control.Monad.Reader hiding (fix, join)
 import Control.Monad.Except hiding (fix, join)
+import Control.Lens hiding (Const, assign)
+import Control.Lens.TH
 
 import qualified Interp.SharedHO.RDSet as RD
 import Interp.SharedHO.Joinable
@@ -24,11 +27,12 @@ data Expr
     | Loop Expr
     | Seq [Expr]
     | Const Int
-    | Add Expr Expr
-    | Lt Expr Expr
-    | If Expr Expr Expr
-    | Assign String Expr
+    | Add
+    | Lt
+    | If Expr Expr
+    | Assign String
     | Var String
+    | Nop
 
 instance ToBool Int where
     toBool = (/=) 0
@@ -36,64 +40,89 @@ instance ToBool Int where
 instance FromBool Int where
     fromBool b = if b then 1 else 0
 
-class Monad m => Interp m a | m -> a where
-    pushBlock :: m a -> m a -> m a
-    popBlock :: Int -> m a
-    const :: Int -> m a
-    add :: a -> a -> m a
-    lt :: a -> a -> m a
-    if_ :: a -> m a -> m a -> m a
-    assign :: String -> a -> m a
-    lookup :: String -> m a
+class Monad m => Interp m v | m -> v where
+    pushBlock :: m () -> m () -> m ()
+    popBlock :: Int -> m ()
+    const :: Int -> m v
+    add :: v -> v -> m v
+    lt :: v -> v -> m v
+    if_ :: v -> m () -> m () -> m ()
+    assign :: String -> v -> m ()
+    lookup :: String -> m v
+    push :: v -> m ()
+    pop :: m v
 
 class Fix c where
     fix :: (c -> c) -> c
 
-interp :: (Interp m a, Fix (m a)) => Expr -> m a
+interp :: (Interp m a, Fix (m ())) => Expr -> m ()
 interp expr = case expr of
     Branch n -> popBlock n
 
-    Block e -> pushBlock (const 0) (interp e)
+    Block e -> pushBlock (return ()) (interp e)
 
-    Loop e -> fix $ \lp -> pushBlock lp (interp e)
+    Loop e -> fix $ \br -> pushBlock br (interp e)
 
-    Seq es -> foldl (>>) (const 0) (interp <$> es)
+    Seq es -> sequence_ (interp <$> es)
 
-    Const n -> const n
+    Const n -> do
+        v <- const n
+        push v
 
-    Add e1 e2 -> do
-        v1 <- interp e1
-        v2 <- interp e2
-        add v1 v2
+    Add -> do
+        v1 <- pop
+        v2 <- pop
+        v3 <- add v2 v1
+        push v3
 
-    Lt e1 e2 -> do
-        v1 <- interp e1
-        v2 <- interp e2
-        lt v1 v2
+    Lt -> do
+        v1 <- pop
+        v2 <- pop
+        v3 <- lt v2 v1
+        push v3
 
-    If e t f -> do
-        c <- interp e
+    If t f -> do
+        c <- pop
         if_ c (interp t) (interp f)
 
-    Assign var e -> do
-        v <- interp e
+    Assign var -> do
+        v <- pop
         assign var v
 
-    Var var -> lookup var
+    Var var -> do
+        v <- lookup var
+        push v
 
+    Nop -> return ()
+
+
+data ToyState v = ToyState { _variables :: M.Map String v
+                           , _stack :: [v] } deriving (Show, Eq)
+
+emptyToySt = ToyState M.empty []
+
+makeLenses ''ToyState
+
+
+
+-- Concrete interpreter
 
 newtype Concrete a = Concrete
-    { runConcrete :: ExceptT (Either String Int) (State (M.Map String Int)) a }
-    deriving (Functor, Applicative, Monad, MonadState (M.Map String Int),
+    { runConcrete :: ExceptT (Either String Int) (State (ToyState Int)) a }
+    deriving (Functor, Applicative, Monad, MonadState (ToyState Int),
         MonadError (Either String Int))
 
 instance Interp Concrete Int where
     pushBlock br adv = do
+        st1 <- get
+        put $ set stack [] st1
         catchError adv $ \e -> case e of
             Right n  -> if n <= 0
                 then br
                 else throwError $ Right $ n - 1
             Left msg -> throwError $ Left msg
+        st2 <- get
+        put $ over stack (++ view stack st1) st2
 
     popBlock n = throwError $ Right n
 
@@ -107,24 +136,36 @@ instance Interp Concrete Int where
 
     assign var v = do
         st <- get
-        put $ M.insert var v st
-        return v
+        put $ over variables (M.insert var v) st
 
     lookup var = do
         st <- get
-        case M.lookup var st of
+        case M.lookup var (view variables st) of
             Just v  -> return v
             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
 
-instance Fix (Concrete Int) where
+    push v = modify $ over stack (v:)
+
+    pop = do
+        st <- get
+        case view stack st of
+            v:_ -> do
+                modify $ over stack tail
+                return v
+            []  -> throwError $ Left $ "Tried to pop value from empty stack."
+
+instance Fix (Concrete ()) where
     fix f = f (fix f)
 
-run :: Expr -> Either (Either String Int) Int
-run e = fst $ runState
-                  (runExceptT
-                      (runConcrete
-                          ((interp :: Expr -> Concrete Int) e))) M.empty
+run :: Expr -> (Either (Either String Int) (), ToyState Int)
+run e = runState
+            (runExceptT
+                (runConcrete
+                    ((interp :: Expr -> Concrete ()) e))) emptyToySt
 
+
+
+-- Depth checker
 
 newtype DepthChecker a =
     DepthChecker { runDepthChecker :: (ReaderT Int (Except String) a) }
@@ -152,6 +193,10 @@ instance Interp DepthChecker () where
 
     lookup _ = return ()
 
+    push _ = return ()
+
+    pop = return ()
+
 instance Fix (DepthChecker ()) where
     fix f = f (fix f)
 
@@ -161,54 +206,41 @@ check e = runExcept
                 (runDepthChecker
                     ((interp :: Expr -> DepthChecker ()) e)) 0)
 
-data SavedState a = SavedState { state :: a
-                               , image :: a }
 
-type ReachDefState = SavedState (M.Map String (RD.Set Int))
+type ReachDefState = ToyState (RD.Set Int)
 
 newtype ReachDef a = ReachDef
-    { runReachDef :: ExceptT (Either String Int) (State ReachDefState) a }
+    { runReachDef :: ExceptT (Either String Int) (ReaderT ReachDefState
+        (State ReachDefState)) a }
     deriving (Functor, Applicative, Monad, MonadState ReachDefState,
-        MonadError (Either String Int))
+        MonadReader ReachDefState, MonadError (Either String Int))
 
-getSt :: ReachDef (M.Map String (RD.Set Int))
-getSt = do
-    st <- get
-    return $ state st
-
-getImg :: ReachDef (M.Map String (RD.Set Int))
-getImg = do
-    st <- get
-    return $ image st
-
-putSt :: M.Map String (RD.Set Int) -> ReachDef ()
-putSt st = do
-    img <- getImg
-    put $ SavedState st img
-
-putImg :: M.Map String (RD.Set Int) -> ReachDef ()
-putImg img = do
-    st <- getSt
-    put $ SavedState st img
+instance Joinable a => Joinable (ToyState a) where
+    join st1 st2 = over stack (join $ view stack st2) $
+                   over variables (join $ view variables st2) st1
 
 instance Joinable a => Joinable (ReachDef a) where
     join f g = do
-        st <- getSt
+        st <- get
         x <- f
-        st1 <- getSt
-        putSt st
+        st1 <- get
+        put st
         y <- g
-        st2 <- getSt
-        putSt $ st1 `join` st2
+        st2 <- get
+        put $ st1 `join` st2
         return $ x `join` y
 
 instance Interp ReachDef (RD.Set Int) where
     pushBlock br adv = do
+        st1 <- get
+        put $ set stack [] st1
         catchError adv $ \e -> case e of
             Right n  -> if n <= 0
                 then br
                 else throwError $ Right $ n - 1
             Left msg -> throwError $ Left msg
+        st2 <- get
+        put $ over stack (++ view stack st1) st2
 
     popBlock n = throwError $ Right n
 
@@ -221,31 +253,40 @@ instance Interp ReachDef (RD.Set Int) where
     if_ c t f = RD.if_ c t f
 
     assign var v = do
-        st <- getSt
-        putSt $ M.insert var v st
-        return v
+        modify $ over variables (M.insert var v)
 
     lookup var = do
-        st <- getSt
-        case M.lookup var st of
+        st <- get
+        case M.lookup var (view variables st) of
             Just v  -> return v
             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
 
-instance Fix (ReachDef (RD.Set Int)) where
+    push v = modify $ over stack (v:)
+
+    pop = do
+        st <- get
+        case view stack st of
+            v:_ -> do
+                modify $ over stack tail
+                return v
+            []  -> throwError $ Left $ "Tried to pop value from empty stack."
+
+
+instance Fix (ReachDef ()) where
     fix f = do
-        st <- getSt
-        img <- getImg
+        st <- get
+        img <- ask
         if st == img
-            then return RD.Top
+            then return ()
             else do
                 let st' = st `join` img
-                putSt st'
-                putImg st'
-                f (fix f)
+                put st'
+                local (\_ -> st') $ f (fix f)
 
-runRD :: Expr -> Either (Either String Int) (RD.Set Int)
-runRD e = fst $ runState
-                    (runExceptT
-                        (runReachDef
-                            ((interp :: Expr -> ReachDef (RD.Set Int)) e)))
-                                (SavedState M.empty M.empty)
+runRD :: Expr -> (Either (Either String Int) (), ToyState (RD.Set Int))
+runRD e = runState
+              (runReaderT
+                  (runExceptT
+                      (runReachDef
+                          ((interp :: Expr -> ReachDef ()) e)))
+                              emptyToySt) emptyToySt
