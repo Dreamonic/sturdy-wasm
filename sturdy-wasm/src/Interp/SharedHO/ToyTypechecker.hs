@@ -20,16 +20,7 @@ import Control.Lens.TH
 
 import Interp.SharedHO.Joinable
 import Interp.SharedHO.BoolVal
-
-data Type
-    = I32
-    | I64
-    deriving (Show, Eq)
-
-data Value = Value {
-    getType :: Type,
-    getVal :: Integer
-} deriving (Show, Eq)
+import Interp.SharedHO.Types
 
 data Expr
     = Branch Int
@@ -136,12 +127,24 @@ interp expr = case expr of
 -- 2. typechecking it based on the result of typechecking the branch, 
 --    like it is done in webassembly
 
-equalType :: Value -> Value -> Bool
-equalType v1 v2 = (getType v1) == (getType v2)
+data T 
+    = Known Type
+    | Unknown
+    deriving (Eq, Show)
+
+equalType :: T -> T -> Bool
+equalType t1 t2 = case (t1, t2) of
+    (Known t1', Known t2') -> t1' == t2'
+    _ -> True
+
+combineType :: T -> T -> T
+combineType t1 t2 = case (t1, t2) of
+    (Known t1', Known t2') | t1' == t2' -> t1
+    _ -> Unknown
 
 data TypeCheckState = TypeCheckState {
-    _variables :: M.Map String Type,
-    _stack :: [Maybe Type],
+    _variables :: M.Map String T,
+    _stack :: [T],
     _unreachable :: Bool
 } deriving (Show, Eq)
 
@@ -158,16 +161,16 @@ unexpectedType expected actual =
 invalidOp op t1 t2 = 
     ["Cannot " ++ (show op) ++ " " ++ (show t1) ++ " and " ++ (show t2)]
 
-instance Interp TypeChecker Type where
+instance Interp TypeChecker T where
     pushBlock rty _ adv = do
         outerBlockState <- get
         put $ set stack [] outerBlockState
         local (rty :) adv
         innerBlockState <- get
         let innerStack = view stack innerBlockState
-        unless (view unreachable innerBlockState || (head innerStack) == Just rty)
+        unless (view unreachable innerBlockState || (head innerStack) == Known rty)
             $ tell (unexpectedType rty (head innerStack))
-        put $ over stack (Just rty :) outerBlockState
+        put $ over stack (Known rty :) outerBlockState
         -- if view unreachable innerBlockState || (head innerStack) == rty
         --     then put $ over stack (rty :) outerBlockState
         --     else do
@@ -198,14 +201,15 @@ instance Interp TypeChecker Type where
                 --     else
                 --         tell $ unexpectedType rty stack'
 
-    const = return . getType
+    const = return . Known . getType
 
-    -- add t1 t2 = do
-    --     unless (t1 == t2) $ tell (invalidOp "add" t1 t2)
-    --     return
+    add t1 t2 = do
+        unless (equalType t1 t2) $ tell (invalidOp "add" t1 t2)
+        return $ combineType t1 t2
 
-    -- lt t1 t2 = do
-    --     unless (t1 == t2) $ tell (invalidOp "compare" t1 t2)
+    lt t1 t2 = do
+        unless (equalType t1 t2) $ tell (invalidOp "compare" t1 t2)
+        return $ combineType t1 t2
 
     if_ _ t f = do
         st <- get
@@ -218,21 +222,25 @@ instance Interp TypeChecker Type where
         st <- get
         put $ over variables (M.insert var v) st
 
-    -- lookup var = do
-    --     st <- get
-    --     case M.lookup var (view variables st) of
-    --         Just v  -> return v
-    --         Nothing -> tell ["Var " ++ var ++ " not in scope"]
+    lookup var = do
+        st <- get
+        case M.lookup var (view variables st) of
+            Just v  -> return v
+            Nothing -> do
+                tell ["Var " ++ var ++ " not in scope"]
+                return Unknown
 
-    push v = modify $ over stack (Just v :)
+    push v = modify $ over stack (v :)
 
-    -- pop = do
-    --     st <- get
-    --     case view stack st of
-    --         v:_ -> do
-    --             modify $ over stack tail
-    --             return v
-    --         []  -> tell ["Tried to pop value from empty stack."]
+    pop = do
+        st <- get
+        case view stack st of
+            v:_ -> do
+                modify $ over stack tail
+                return v
+            []  -> do
+                tell ["Tried to pop value from empty stack."]
+                return Unknown
 
 
 -- newtype TypeChecker a = TypeChecker
