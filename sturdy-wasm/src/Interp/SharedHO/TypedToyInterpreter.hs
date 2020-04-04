@@ -6,11 +6,12 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.ToyTypechecker
+module Interp.SharedHO.TypedToyInterpreter
 where
 
 import qualified Data.Map as M
 import Prelude hiding (const, lookup)
+import Data.List (intercalate)
 import Control.Monad.State hiding (fix, join, state)
 import Control.Monad.Reader hiding (fix, join)
 import Control.Monad.Except hiding (fix, join)
@@ -127,26 +128,13 @@ interp expr = case expr of
 -- 2. typechecking it based on the result of typechecking the branch, 
 --    like it is done in webassembly
 
-data T 
-    = Known Type
-    | Unknown
-    deriving (Eq, Show)
-
-equalType :: T -> T -> Bool
-equalType t1 t2 = case (t1, t2) of
-    (Known t1', Known t2') -> t1' == t2'
-    _ -> True
-
-combineType :: T -> T -> T
-combineType t1 t2 = case (t1, t2) of
-    (Known t1', Known t2') | t1' == t2' -> t1
-    _ -> Unknown
-
 data TypeCheckState = TypeCheckState {
-    _variables :: M.Map String T,
-    _stack :: [T],
+    _variables :: M.Map String MaybeType,
+    _stack :: [MaybeType],
     _unreachable :: Bool
 } deriving (Show, Eq)
+
+emptyTypeCheckState = TypeCheckState M.empty [] False
 
 makeLenses ''TypeCheckState
 
@@ -159,28 +147,24 @@ unexpectedType expected actual =
     ["Expected " ++ (show expected) ++ " but got " ++ (show actual)]
 
 invalidOp op t1 t2 = 
-    ["Cannot " ++ (show op) ++ " " ++ (show t1) ++ " and " ++ (show t2)]
+    ["Cannot " ++ op ++ " " ++ (show t1) ++ " and " ++ (show t2)]
 
-instance Interp TypeChecker T where
+instance Interp TypeChecker MaybeType where
     pushBlock rty _ adv = do
         outerBlockState <- get
         put $ set stack [] outerBlockState
         local (rty :) adv
         innerBlockState <- get
         let innerStack = view stack innerBlockState
-        unless (view unreachable innerBlockState || (head innerStack) == Known rty)
-            $ tell (unexpectedType rty (head innerStack))
+        let isUnreachable = view unreachable innerBlockState
+        unless (isUnreachable) $ do
+            if null innerStack
+                then tell ["Cannot pop from empty stack"]
+                else when ((head innerStack) /= Known rty)
+                    $ tell (unexpectedType rty (head innerStack))
+        -- unless (view unreachable innerBlockState || (head innerStack) == Known rty)
+        --     $ tell (unexpectedType rty (head innerStack))
         put $ over stack (Known rty :) outerBlockState
-        -- if view unreachable innerBlockState || (head innerStack) == rty
-        --     then put $ over stack (rty :) outerBlockState
-        --     else do
-                -- tell
-                --     [ "Expected "
-                --       ++ (show rty)
-                --       ++ " but got "
-                --       ++ (show . head $ innerStack)
-                --     ]
-        --         put outerBlockState
 
     popBlock n = do
         rtys <- (drop n) <$> ask
@@ -194,24 +178,19 @@ instance Interp TypeChecker T where
                     rty:_ -> put $ over stack tail st
                     _ -> tell $ unexpectedType rty stack' 
                 modify (set unreachable True)
-                -- if not (null stack') && head stack' == rty
-                --     then
-                --     -- replace by pop
-                --          put $ over stack tail st
-                --     else
-                --         tell $ unexpectedType rty stack'
 
     const = return . Known . getType
 
     add t1 t2 = do
-        unless (equalType t1 t2) $ tell (invalidOp "add" t1 t2)
-        return $ combineType t1 t2
+        unless (t1 == t2) $ tell (invalidOp "add" t1 t2)
+        return $ t1 `join` t2
 
     lt t1 t2 = do
-        unless (equalType t1 t2) $ tell (invalidOp "compare" t1 t2)
-        return $ combineType t1 t2
+        unless (t1 == t2) $ tell (invalidOp "compare" t1 t2)
+        return $ t1 `join` t2
 
     if_ _ t f = do
+        -- Add state joining?
         st <- get
         t
         put st
@@ -220,7 +199,11 @@ instance Interp TypeChecker T where
 
     assign var v = do
         st <- get
-        put $ over variables (M.insert var v) st
+        let expected = M.lookup var $ view variables st
+        case expected of
+            (Just t) -> when (t /= v) $ 
+                tell $ ["Cannot assign " ++ (show v) ++ " to " ++ (show t)]
+            Nothing -> put $ over variables (M.insert var v) st
 
     lookup var = do
         st <- get
@@ -242,6 +225,24 @@ instance Interp TypeChecker T where
                 tell ["Tried to pop value from empty stack."]
                 return Unknown
 
+instance Fix (TypeChecker ()) where
+    fix f = f (fix f)
+
+typecheck :: Expr -> (((), [String]), TypeCheckState)
+typecheck e = 
+    runState
+        (runReaderT
+            (runWriterT
+                (runTypeChecker
+                    ((interp :: Expr -> TypeChecker ()) e))) []) emptyTypeCheckState
+
+typecheck' :: Expr -> IO ()
+typecheck' e = do
+    let result = typecheck e
+    let state = snd result
+    let errors = snd $ fst result
+    putStrLn $ show state
+    putStrLn $ intercalate "\n" (map ("[!] " ++) errors) 
 
 -- newtype TypeChecker a = TypeChecker
 --     { runTypeChecker :: ExceptT (Either [String] Int) (State TypeCheckState) a}
