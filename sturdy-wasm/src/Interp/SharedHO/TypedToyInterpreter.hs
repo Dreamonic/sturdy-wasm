@@ -228,7 +228,8 @@ instance Interp TypeChecker MaybeType where
                 modify $ over stack tail
                 return v
             []  -> do
-                tell ["Tried to pop value from empty stack."]
+                unless (view unreachable st) $
+                    tell ["Tried to pop value from empty stack."]
                 return Unknown
 
 instance Fix (TypeChecker ()) where

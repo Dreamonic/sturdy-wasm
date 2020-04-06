@@ -139,8 +139,8 @@ emptyTypeCheckState = TypeCheckState M.empty [] False
 makeLenses ''TypeCheckState
 
 newtype TypeChecker a = TypeChecker
-    { runTypeChecker :: WriterT [String] (ReaderT [Maybe Type] (State TypeCheckState)) a}
-    deriving (Functor, Applicative, Monad, MonadReader [Maybe Type], 
+    { runTypeChecker :: WriterT [String] (ReaderT [MaybeType] (State TypeCheckState)) a}
+    deriving (Functor, Applicative, Monad, MonadReader [MaybeType], 
         MonadState TypeCheckState, MonadWriter [String])
 
 -- TODO find good definition for join
@@ -160,8 +160,8 @@ instance Interp TypeChecker MaybeType where
         outerBlockState <- get
         put $ set stack [] outerBlockState
         if isLoop
-            then local (Nothing :) adv
-            else local (Just rty :) adv
+            then local (Unknown :) adv
+            else local (Known rty :) adv
         innerBlockState <- get
         let innerStack = view stack innerBlockState
         let isUnreachable = view unreachable innerBlockState
@@ -180,10 +180,10 @@ instance Interp TypeChecker MaybeType where
             then tell ["Can't break " ++ show n]
             else do
                 let rty = head rtys
-                when (rty /= Nothing) $ do
-                    case stack' of
-                        rty:_ -> put $ over stack tail st
-                        _ -> tell $ unexpectedType rty stack' 
+                val <- pop
+                if val == rty
+                    then put $ over stack tail st
+                    else tell $ unexpectedType rty stack'
                 modify (set unreachable True)
 
     const = return . Known . getType
@@ -231,7 +231,8 @@ instance Interp TypeChecker MaybeType where
                 modify $ over stack tail
                 return v
             []  -> do
-                tell ["Tried to pop value from empty stack."]
+                unless (view unreachable st) $
+                    tell ["Tried to pop value from empty stack."]
                 return Unknown
 
 instance Fix (TypeChecker ()) where
