@@ -3,7 +3,7 @@
 module Interp.SharedHO.TypedPrograms
 where
 
-import Interp.SharedHO.TypedToyInterpreter
+import Interp.SharedHO.TypedToyInterpreter2
 import Interp.SharedHO.Types
 
 i32Val = Value I32

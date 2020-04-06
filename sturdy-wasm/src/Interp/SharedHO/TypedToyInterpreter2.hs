@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.TypedToyInterpreter
+module Interp.SharedHO.TypedToyInterpreter2
 where
 
 import qualified Data.Map as M
@@ -43,7 +43,7 @@ instance FromBool Integer where
     fromBool b = if b then 1 else 0
 
 class Monad m => Interp m v | m -> v where
-    pushBlock :: Type -> m () -> m () -> m ()
+    pushBlock :: Type -> Bool -> m () -> m () -> m ()
     popBlock :: Int -> m ()
     const :: Value -> m v
     add :: v -> v -> m v
@@ -61,9 +61,9 @@ interp :: (Interp m a, Fix (m ())) => Expr -> m ()
 interp expr = case expr of
     Branch n -> popBlock n
 
-    Block rty e -> pushBlock rty (return ()) (interp e)
+    Block rty e -> pushBlock rty False (return ()) (interp e)
 
-    Loop rty e -> fix $ \br -> pushBlock rty br (interp e)
+    Loop rty e -> fix $ \br -> pushBlock rty True br (interp e)
 
     Seq es -> sequence_ (interp <$> es)
 
@@ -85,8 +85,8 @@ interp expr = case expr of
 
     If rty t f -> do
         c <- pop
-        let t' = pushBlock rty (return ()) (interp t)
-        let f' = pushBlock rty (return ()) (interp f)
+        let t' = pushBlock rty True (return ()) (interp t)
+        let f' = pushBlock rty True (return ()) (interp f)
         if_ c t' f'
 
     Assign var -> do
@@ -139,8 +139,8 @@ emptyTypeCheckState = TypeCheckState M.empty [] False
 makeLenses ''TypeCheckState
 
 newtype TypeChecker a = TypeChecker
-    { runTypeChecker :: WriterT [String] (ReaderT [Type] (State TypeCheckState)) a}
-    deriving (Functor, Applicative, Monad, MonadReader [Type], 
+    { runTypeChecker :: WriterT [String] (ReaderT [Maybe Type] (State TypeCheckState)) a}
+    deriving (Functor, Applicative, Monad, MonadReader [Maybe Type], 
         MonadState TypeCheckState, MonadWriter [String])
 
 -- TODO find good definition for join
@@ -156,10 +156,12 @@ invalidOp op t1 t2 =
     ["Cannot " ++ op ++ " " ++ (show t1) ++ " and " ++ (show t2)]
 
 instance Interp TypeChecker MaybeType where
-    pushBlock rty _ adv = do
+    pushBlock rty isLoop _ adv = do
         outerBlockState <- get
         put $ set stack [] outerBlockState
-        local (rty :) adv
+        if isLoop
+            then local (Nothing :) adv
+            else local (Just rty :) adv
         innerBlockState <- get
         let innerStack = view stack innerBlockState
         let isUnreachable = view unreachable innerBlockState
@@ -178,9 +180,10 @@ instance Interp TypeChecker MaybeType where
             then tell ["Can't break " ++ show n]
             else do
                 let rty = head rtys
-                case stack' of
-                    rty:_ -> put $ over stack tail st
-                    _ -> tell $ unexpectedType rty stack' 
+                when (rty /= Nothing) $ do
+                    case stack' of
+                        rty:_ -> put $ over stack tail st
+                        _ -> tell $ unexpectedType rty stack' 
                 modify (set unreachable True)
 
     const = return . Known . getType
@@ -208,7 +211,7 @@ instance Interp TypeChecker MaybeType where
         let expected = M.lookup var $ view variables st
         case expected of
             (Just t) -> when (t /= v) $ 
-                tell $ ["Cannot assign " ++ (show v) ++ " to " ++ (show t)]
+                tell $ ["Cannot assign " ++ (show v) ++ " to " ++ var ++ " of " ++ (show t)]
             Nothing -> put $ over variables (M.insert var v) st
 
     lookup var = do
