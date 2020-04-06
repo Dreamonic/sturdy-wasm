@@ -46,7 +46,7 @@ finiteLoop = Seq
         , Const (i32Val 5)
         , Lt
         , If I32
-             (Seq [Const (i32Val 1), Var "x", Add, Assign "x", Branch 0])
+             (Seq [Const (i32Val 1), Var "x", Add, Assign "x", Branch 1, Var "x"])
              (Var "x")
         ]
     ]

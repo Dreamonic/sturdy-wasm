@@ -143,6 +143,12 @@ newtype TypeChecker a = TypeChecker
     deriving (Functor, Applicative, Monad, MonadReader [Type], 
         MonadState TypeCheckState, MonadWriter [String])
 
+-- TODO find good definition for join
+matchingReturn :: [MaybeType] -> [MaybeType] -> MaybeType
+matchingReturn stack1 stack2 = case (stack1, stack2) of
+    (v1:_, v2:_) -> v1 `join` v2
+    _ -> Unknown
+    
 unexpectedType expected actual =
     ["Expected " ++ (show expected) ++ " but got " ++ (show actual)]
 
@@ -162,8 +168,6 @@ instance Interp TypeChecker MaybeType where
                 then tell ["Cannot pop from empty stack"]
                 else when ((head innerStack) /= Known rty)
                     $ tell (unexpectedType rty (head innerStack))
-        -- unless (view unreachable innerBlockState || (head innerStack) == Known rty)
-        --     $ tell (unexpectedType rty (head innerStack))
         put $ over stack (Known rty :) outerBlockState
 
     popBlock n = do
@@ -187,15 +191,17 @@ instance Interp TypeChecker MaybeType where
 
     lt t1 t2 = do
         unless (t1 == t2) $ tell (invalidOp "compare" t1 t2)
-        return $ t1 `join` t2
+        return $ Known I32
 
     if_ _ t f = do
-        -- Add state joining?
         st <- get
         t
+        stack1 <- view stack <$> get
         put st
         f
-        put st
+        stack2 <- view stack <$> get
+        let rty = matchingReturn stack1 stack2
+        put $ over stack (rty :) st
 
     assign var v = do
         st <- get
@@ -243,70 +249,3 @@ typecheck' e = do
     let errors = snd $ fst result
     putStrLn $ show state
     putStrLn $ intercalate "\n" (map ("[!] " ++) errors) 
-
--- newtype TypeChecker a = TypeChecker
---     { runTypeChecker :: ExceptT (Either [String] Int) (State TypeCheckState) a}
---     deriving (Functor, Applicative, Monad, MonadError (Either String Int), 
---         MonadState TypeCheckState)
-
--- instance Interp TypeChecker Type where
---     pushBlock rty br adv = do
---         outerBlockState <- get
---         put $ set stack [] outerBlockState
---         catchError adv $ \e -> case e of
---             Right n  -> if n <= 0
---                 then return ()
---                 else throwError $ Right $ n - 1
---             Left msg -> throwError $ Left msg
---         innerBlockState <- get
---         let innerStack = view stack innerBlockState
---         if (head innerStack) == rty then
---             put $ over stack (rty:) outerBlockState
---         else
---             throwError $ Left $ "Expected " ++ (show rty) ++ " but got " ++ (show . head $ innerStack)
-
---     popBlock n = throwError $ Right n
-
---     const = return . getType
-
---     add t1 t2 = do
---         if t1 == t2 then
---             return t1
---         else
---             throwError $ Left $ "Cannot add " ++ (show t1) ++ " and " ++ (show t2) 
-
---     lt t1 t2 = do
---         if t1 == t2 then
---             return t1
---         else
---             throwError $ Left $ "Cannot compare " ++ (show t1) ++ " with " ++ (show t2)
-
---     if_ t f = do
---         st <- get
---         t
---         put st
---         f
---         put st
-
---     assign var v = do
---         st <- get
---         put $ over variables (M.insert var v) st
-
---     lookup var = do
---         st <- get
---         case M.lookup var (view variables st) of
---             Just v  -> return v
---             Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
-
---     push v = modify $ over stack (v:)
-
---     pop = do
---         st <- get
---         case view stack st of
---             v:_ -> do
---                 modify $ over stack tail
---                 return v
---             []  -> throwError $ Left $ "Tried to pop value from empty stack."
-
--- instance Fix (TypeChecker ()) where
---     fix f = f (fix f)
