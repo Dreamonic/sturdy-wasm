@@ -85,8 +85,8 @@ interp expr = case expr of
 
     If rty t f -> do
         c <- pop
-        let t' = pushBlock rty True (return ()) (interp t)
-        let f' = pushBlock rty True (return ()) (interp f)
+        let t' = pushBlock rty False (return ()) (interp t)
+        let f' = pushBlock rty False (return ()) (interp f)
         if_ c t' f'
 
     Assign var -> do
@@ -180,10 +180,11 @@ instance Interp TypeChecker MaybeType where
             then tell ["Can't break " ++ show n]
             else do
                 let rty = head rtys
-                val <- pop
-                if val == rty
-                    then put $ over stack tail st
-                    else tell $ unexpectedType rty stack'
+                when (rty /= Unknown) $ do
+                    val <- pop
+                    if val == rty
+                        then put $ over stack tail st
+                        else tell $ unexpectedType rty stack'
                 modify (set unreachable True)
 
     const = return . Known . getType
