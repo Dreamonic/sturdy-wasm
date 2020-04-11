@@ -1,10 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 
-module Interp.SharedHO.TypedPrograms
+module Interp.SharedHO.Typed.Programs
 where
 
-import Interp.SharedHO.TypedToyInterpreter2
-import Interp.SharedHO.Types
+import Interp.SharedHO.Typed.GenericInterpreter
+import Interp.SharedHO.Typed.TypeChecker
+import Interp.SharedHO.Typed.Types
 
 i32Val = Value I32
 i64Val = Value I64
