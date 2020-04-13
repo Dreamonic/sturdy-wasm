@@ -47,7 +47,8 @@ instance Interp Concrete Value where
                 else throwError $ Right $ n - 1
             Left msg -> throwError $ Left msg
         st2 <- get
-        put $ over stack (++ view stack st1) st2
+        rty <- pop
+        put $ set stack (rty : (view stack st1)) st2
 
     popBlock n = throwError $ Right n
 

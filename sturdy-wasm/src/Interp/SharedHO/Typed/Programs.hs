@@ -4,7 +4,7 @@ module Interp.SharedHO.Typed.Programs
 where
 
 import Interp.SharedHO.Typed.GenericInterpreter
-import Interp.SharedHO.Typed.TypeChecker
+import Interp.SharedHO.Typed.TypeCheckerSimple
 import Interp.SharedHO.Typed.Types
 
 i32Val = Value I32
@@ -109,7 +109,7 @@ nestedLoop = Seq
                             , Var "y"
                             , Add
                             , Assign "y"
-                            , Branch 0
+                            , Branch 1
                             ]
                         )
                         (Const (i32Val 1))
