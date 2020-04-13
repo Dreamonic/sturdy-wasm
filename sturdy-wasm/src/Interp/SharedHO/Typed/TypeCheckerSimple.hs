@@ -57,8 +57,8 @@ newtype TypeChecker a = TypeChecker
 -- TODO find good definition for join
 matchingReturn :: [CType] -> [CType] -> CType
 matchingReturn stack1 stack2 = case (stack1, stack2) of
-    (v1:_, v2:_) -> v1 `join` v2
-    _ -> AnyT
+    (v1 : _, v2 : _) -> v1 `join` v2
+    _                -> AnyT
     
 unexpectedType expected actual =
     "Expected " ++ (show expected) ++ " but got " ++ (show actual)
@@ -73,12 +73,10 @@ instance Interp TypeChecker CType where
         if isLoop
             then local (Nothing :) adv
             else local (Just rty :) adv
-        innerBlockState <- get
         val <- pop
         case val of
-            SomeT val' | val' /= rty -> throwError $
-                unexpectedType rty val'
-            _ -> return ()
+            SomeT val' | val' /= rty -> throwError $ unexpectedType rty val'
+            _                        -> return ()
         put $ over stack (SomeT rty :) outerBlockState
 
     popBlock n = do
@@ -95,8 +93,9 @@ instance Interp TypeChecker CType where
                         (SomeT val', Just rty') | val' == rty' -> do
                             put $ over stack tail st
                         (AnyT, Just _) -> put $ over stack tail st
-                        _ -> throwError $ unexpectedType rty stack'
+                        _              -> throwError $ unexpectedType rty stack'
                 modify (set is_top True)
+                modify (set stack [])
 
     const = return . SomeT . getType
 
@@ -141,10 +140,10 @@ instance Interp TypeChecker CType where
     pop = do
         st <- get
         case view stack st of
-            v:_ -> do
+            v : _ -> do
                 modify $ over stack tail
                 return v
-            []  -> do
+            [] -> do
                 if (view is_top st)
                     then return AnyT
                     else throwError "Tried to pop value from empty stack."

@@ -120,3 +120,12 @@ nestedLoop = Seq
             (Const (i32Val 1))
         ]
     ]
+
+unreachableWellTyped = Block I32 $ Seq [Const (i32Val 1), Branch 0, Add]
+
+unreachableIllTyped = Block I32 $ Seq
+    [Const (i32Val 1), Branch 0, Const (i32Val 1), Const (i64Val 1), Add]
+
+loopReturn = Loop I32 $ Seq [(Const (i64Val 1)), Branch 0]
+
+blockReturn = Block I32 $ Seq [(Const (i64Val 1)), Branch 0]
