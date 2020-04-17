@@ -31,7 +31,7 @@ data Expr
     | Const Value
     | Add
     | Lt
-    | Not
+    | Eqz
     | If Type Expr Expr
     | Assign String
     | Var String
@@ -49,7 +49,7 @@ class Monad m => Interp m v | m -> v where
     const :: Value -> m v
     add :: v -> v -> m v
     lt :: v -> v -> m v
-    not_ :: v -> m v
+    eqz :: v -> m v
     if_ :: v -> m () -> m () -> m ()
     assign :: String -> v -> m ()
     lookup :: String -> m v
@@ -85,9 +85,9 @@ interp expr = case expr of
         v3 <- lt v2 v1
         push v3
 
-    Not -> do
+    Eqz -> do
         v1 <- pop
-        v2 <- not_ v1
+        v2 <- eqz v1
         push v2
 
     If rty t f -> do

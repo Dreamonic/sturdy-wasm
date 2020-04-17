@@ -121,7 +121,7 @@ instance Interp TypeChecker MaybeType where
         unless (t1 == t2) $ tell (invalidOp "compare" t1 t2)
         return $ Known I32
 
-    not_ = return
+    eqz = return
 
     if_ _ t f = do
         st <- get

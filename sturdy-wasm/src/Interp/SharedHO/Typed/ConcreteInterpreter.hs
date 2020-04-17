@@ -54,17 +54,17 @@ instance Interp Concrete Value where
 
     const = return
 
-    add (Value t1 v1) (Value t2 v2) = do
+    add (Value t1 v1) (Value t2 v2) =
         if t1 == t2
             then return $ Value t1 (v1 + v2)
             else throwError $ Left "Invalid add"
 
-    lt (Value t1 v1) (Value t2 v2) = do
+    lt (Value t1 v1) (Value t2 v2) =
         if t1 == t2
             then return $ Value t1 (fromBool $ v1 < v2)
             else throwError $ Left "Invalid comparison"
 
-    not_ (Value t v) = return $ Value t (fromBool . not . toBool $ v)
+    eqz (Value t v) = return $ Value t (fromBool . not . toBool $ v)
 
     if_ c t f = if toBool c then t else f
 

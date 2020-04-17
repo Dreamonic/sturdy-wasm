@@ -25,10 +25,17 @@ instance Ord a => Joinable (Set a) where
 instance FromBool a => FromBool (Set a) where
     fromBool b = singleton $ fromBool b
 
+instance FromBool Int where
+    fromBool b = if b then 1 else 0
+
 add :: (Ord a, Num a) => Set a -> Set a -> Set a
 add (Mid s1) (Mid s2) = fromSet $ S.map (\(x, y) -> x + y)
     (S.cartesianProduct s1 s2)
 add _ _ = Top
+
+eqz :: (Ord a, Num a, FromBool a) => Set a -> Set a
+eqz (Mid s) = fromSet $ S.map (\n -> fromBool (n == 0)) s
+eqz _ = Top
 
 lt :: (Ord a, FromBool a) => Set a -> Set a -> Set a
 lt (Mid s1) (Mid s2) =
