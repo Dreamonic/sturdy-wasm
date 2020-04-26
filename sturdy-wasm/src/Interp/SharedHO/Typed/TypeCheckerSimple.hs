@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -12,6 +11,7 @@ where
 import qualified Data.Map as M
 import Prelude hiding (const, lookup)
 import Data.List (intercalate)
+import Data.Maybe (isJust)
 import Control.Monad.State hiding (fix, join, state)
 import Control.Monad.Reader hiding (fix, join)
 import Control.Monad.Except hiding (fix, join)
@@ -51,19 +51,13 @@ makeLenses ''TypeCheckState
 
 newtype TypeChecker a = TypeChecker
     { runTypeChecker :: ExceptT String (ReaderT [Maybe Type] (State TypeCheckState)) a}
-    deriving (Functor, Applicative, Monad, MonadReader [Maybe Type], 
+    deriving (Functor, Applicative, Monad, MonadReader [Maybe Type],
         MonadState TypeCheckState, MonadError String)
 
--- TODO find good definition for join
-matchingReturn :: [CType] -> [CType] -> CType
-matchingReturn stack1 stack2 = case (stack1, stack2) of
-    (v1 : _, v2 : _) -> v1 `join` v2
-    _                -> AnyT
-    
 unexpectedType expected actual =
     "Expected " ++ (show expected) ++ " but got " ++ (show actual)
 
-invalidOp op t1 t2 = 
+invalidOp op t1 t2 =
     "Cannot " ++ op ++ " " ++ (show t1) ++ " and " ++ (show t2)
 
 instance Interp TypeChecker CType where
@@ -80,17 +74,17 @@ instance Interp TypeChecker CType where
         put $ over stack (SomeT rty :) outerBlockState
 
     popBlock n = do
-        rtys <- drop n <$> ask
+        rtys <- asks (drop n)
         st   <- get
         let stack' = view stack st
         if null rtys
             then throwError $ "Can't break " ++ show n
             else do
                 let rty = head rtys
-                when (rty /= Nothing) $ do
+                when (isJust rty) $ do
                     val <- pop
                     case (val, rty) of
-                        (SomeT val', Just rty') | val' == rty' -> do
+                        (SomeT val', Just rty') | val' == rty' ->
                             put $ over stack tail st
                         (AnyT, Just _) -> put $ over stack tail st
                         _              -> throwError $ unexpectedType rty stack'
@@ -99,33 +93,34 @@ instance Interp TypeChecker CType where
 
     const = return . SomeT . getType
 
-    add t1 t2 = do
-        if (t1 /= t2)
+    add t1 t2 =
+        if t1 /= t2
             then throwError (invalidOp "add" t1 t2)
             else return t1
 
-    lt t1 t2 = do
-        if (t1 /= t2)
+    lt t1 t2 =
+        if t1 /= t2
             then throwError (invalidOp "compare" t1 t2)
             else return $ SomeT I32
 
-    not_ = return
+    eqz _ = return $ SomeT I32
 
-    if_ _ t f = do
+    if_ rty t f = do
         st <- get
         t
-        stack1 <- view stack <$> get
+        stack1 <- gets (view stack)
         put st
         f
-        stack2 <- view stack <$> get
-        let rty = matchingReturn stack1 stack2
-        put $ over stack (rty :) st
+        stack2 <- gets (view stack)
+        if head stack1 == rty && head stack2 == rty
+            then put $ over stack (rty :) st
+            else throwError "Result types of if branches do not match"
 
     assign var v = do
         st <- get
         let expected = M.lookup var $ view variables st
         case expected of
-            (Just t) -> when (t /= v) $ 
+            (Just t) -> when (t /= v) $
                 throwError $ "Cannot assign " ++ (show v) ++ " to " ++ var ++ " of " ++ (show t)
             Nothing -> put $ over variables (M.insert var v) st
 
@@ -143,8 +138,8 @@ instance Interp TypeChecker CType where
             v : _ -> do
                 modify $ over stack tail
                 return v
-            [] -> do
-                if (view is_top st)
+            [] ->
+                if view is_top st
                     then return AnyT
                     else throwError "Tried to pop value from empty stack."
 
@@ -152,7 +147,7 @@ instance Fix (TypeChecker ()) where
     fix f = f (fix f)
 
 typecheck :: Expr -> (Either String (), TypeCheckState)
-typecheck e = 
+typecheck e =
     runState
         (runReaderT
             (runExceptT
