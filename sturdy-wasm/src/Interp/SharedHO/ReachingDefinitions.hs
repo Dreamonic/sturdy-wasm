@@ -5,7 +5,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.Typed.ReachingDefinitions
+module Interp.SharedHO.ReachingDefinitions
 where
 
 import qualified Data.Map as M
@@ -17,10 +17,10 @@ import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
 import qualified Interp.SharedHO.RDSet as RD
-import Interp.SharedHO.Typed.GenericInterpreter
-import Interp.SharedHO.Typed.ConcreteInterpreter (ToyState, stack, variables, emptyToySt)
+import Interp.SharedHO.GenericInterpreter
+import Interp.SharedHO.ConcreteInterpreter (ToyState, stack, variables, emptyToySt)
 import Interp.SharedHO.Joinable
-import Interp.SharedHO.Typed.Types
+import Interp.SharedHO.Types
 
 type ReachDefState = ToyState (RD.Set Int)
 

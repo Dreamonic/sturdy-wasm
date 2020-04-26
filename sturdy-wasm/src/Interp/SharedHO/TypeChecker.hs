@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.Typed.TypeChecker
+module Interp.SharedHO.TypeChecker
 where
 
 import qualified Data.Map as M
@@ -21,8 +21,8 @@ import Control.Lens.TH
 
 import Interp.SharedHO.Joinable
 import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Typed.Types
-import Interp.SharedHO.Typed.GenericInterpreter
+import Interp.SharedHO.Types
+import Interp.SharedHO.GenericInterpreter
 
 -- locals are scoped by blocks 
 -- so a local that is assigned in an inner block should not

@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.Typed.ConcreteInterpreter
+module Interp.SharedHO.ConcreteInterpreter
 where
 
 import qualified Data.Map as M
@@ -21,8 +21,8 @@ import Control.Lens.TH
 
 import Interp.SharedHO.Joinable
 import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Typed.Types
-import Interp.SharedHO.Typed.GenericInterpreter
+import Interp.SharedHO.Types
+import Interp.SharedHO.GenericInterpreter
 
 
 data ToyState v = ToyState { _variables :: M.Map String v

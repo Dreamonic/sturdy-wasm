@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.Typed.GenericInterpreter
+module Interp.SharedHO.GenericInterpreter
 where
 
 import qualified Data.Map as M
@@ -21,7 +21,7 @@ import Control.Lens.TH
 
 import Interp.SharedHO.Joinable
 import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Typed.Types
+import Interp.SharedHO.Types
 
 data Expr
     = Branch Int

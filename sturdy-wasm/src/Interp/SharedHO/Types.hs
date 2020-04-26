@@ -1,4 +1,4 @@
-module Interp.SharedHO.Typed.Types 
+module Interp.SharedHO.Types 
 where
 
 import Interp.SharedHO.Joinable
