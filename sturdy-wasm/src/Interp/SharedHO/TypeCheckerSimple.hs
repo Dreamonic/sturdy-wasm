@@ -5,8 +5,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.TypeCheckerSimple
-where
+module Interp.SharedHO.TypeCheckerSimple where
 
 import qualified Data.Map as M
 import Prelude hiding (const, lookup)
@@ -23,6 +22,7 @@ import Interp.SharedHO.Joinable
 import Interp.SharedHO.BoolVal
 import Interp.SharedHO.Types
 import Interp.SharedHO.GenericInterpreter
+import Interp.SharedHO.Exceptions
 
 data CType
     = AnyT
@@ -32,12 +32,7 @@ data CType
 instance Eq CType where
     a == b = case (a, b) of
         (SomeT a', SomeT b') -> a' == b'
-        _ -> True
-
-instance Joinable CType where
-    join a b = case (a, b) of
-        (SomeT a', SomeT b') | a' == b' -> a
-        _ -> AnyT
+        _                    -> True
 
 data TypeCheckState = TypeCheckState {
     _variables :: M.Map String CType,
@@ -50,26 +45,18 @@ emptyTypeCheckState = TypeCheckState M.empty [] False
 makeLenses ''TypeCheckState
 
 newtype TypeChecker a = TypeChecker
-    { runTypeChecker :: ExceptT String (ReaderT [Maybe Type] (State TypeCheckState)) a}
+    { runTypeChecker :: ExceptT TException (ReaderT [Maybe Type] (State TypeCheckState)) a}
     deriving (Functor, Applicative, Monad, MonadReader [Maybe Type],
-        MonadState TypeCheckState, MonadError String)
-
-unexpectedType expected actual =
-    "Expected " ++ (show expected) ++ " but got " ++ (show actual)
-
-invalidOp op t1 t2 =
-    "Cannot " ++ op ++ " " ++ (show t1) ++ " and " ++ (show t2)
+        MonadState TypeCheckState, MonadError TException)
 
 instance Interp TypeChecker CType where
     pushBlock rty isLoop _ adv = do
         outerBlockState <- get
         put $ set stack [] outerBlockState
-        if isLoop
-            then local (Nothing :) adv
-            else local (Just rty :) adv
+        if isLoop then local (Nothing :) adv else local (Just rty :) adv
         val <- pop
         case val of
-            SomeT val' | val' /= rty -> throwError $ unexpectedType rty val'
+            SomeT val' | val' /= rty -> throwError $ TypeMismatch rty val'
             _                        -> return ()
         put $ over stack (SomeT rty :) outerBlockState
 
@@ -78,7 +65,7 @@ instance Interp TypeChecker CType where
         st   <- get
         let stack' = view stack st
         if null rtys
-            then throwError $ "Can't break " ++ show n
+            then throwError $ InvalidDepth n (length rtys)
             else do
                 let rty = head rtys
                 when (isJust rty) $ do
@@ -87,21 +74,18 @@ instance Interp TypeChecker CType where
                         (SomeT val', Just rty') | val' == rty' ->
                             put $ over stack tail st
                         (AnyT, Just _) -> put $ over stack tail st
-                        _              -> throwError $ unexpectedType rty stack'
+                        _              -> throwError $ TypeMismatch rty stack'
                 modify (set is_top True)
                 modify (set stack [])
 
     const = return . SomeT . getType
 
     add t1 t2 =
-        if t1 /= t2
-            then throwError (invalidOp "add" t1 t2)
-            else return t1
+        if t1 /= t2 then throwError (InvalidOp "add" t1 t2) else return t1
 
-    lt t1 t2 =
-        if t1 /= t2
-            then throwError (invalidOp "compare" t1 t2)
-            else return $ SomeT I32
+    lt t1 t2 = if t1 /= t2
+        then throwError (InvalidOp "compare" t1 t2)
+        else return $ SomeT I32
 
     eqz _ = return $ SomeT I32
 
@@ -114,21 +98,20 @@ instance Interp TypeChecker CType where
         stack2 <- gets (view stack)
         if head stack1 == rty && head stack2 == rty
             then put $ over stack (rty :) st
-            else throwError "Result types of if branches do not match"
+            else throwError $ TypeMismatch (head stack1) (head stack2)
 
     assign var v = do
         st <- get
         let expected = M.lookup var $ view variables st
         case expected of
-            (Just t) -> when (t /= v) $
-                throwError $ "Cannot assign " ++ (show v) ++ " to " ++ var ++ " of " ++ (show t)
-            Nothing -> put $ over variables (M.insert var v) st
+            (Just t) -> when (t /= v) $ throwError $ InvalidAssignment v var t
+            Nothing  -> put $ over variables (M.insert var v) st
 
     lookup var = do
         st <- get
         case M.lookup var (view variables st) of
             Just v  -> return v
-            Nothing -> throwError $ "Var " ++ var ++ " not in scope"
+            Nothing -> throwError $ NotInScope var
 
     push v = modify $ over stack (v :)
 
@@ -138,18 +121,16 @@ instance Interp TypeChecker CType where
             v : _ -> do
                 modify $ over stack tail
                 return v
-            [] ->
-                if view is_top st
-                    then return AnyT
-                    else throwError "Tried to pop value from empty stack."
+            [] -> if view is_top st
+                then return AnyT
+                else throwError StackUnderflow
 
 instance Fix (TypeChecker ()) where
     fix f = f (fix f)
 
-typecheck :: Expr -> (Either String (), TypeCheckState)
-typecheck e =
-    runState
-        (runReaderT
-            (runExceptT
-                (runTypeChecker
-                    ((interp :: Expr -> TypeChecker ()) e))) []) emptyTypeCheckState
+typecheck :: Expr -> (Either TException (), TypeCheckState)
+typecheck e = runState
+    (runReaderT
+        (runExceptT
+            (runTypeChecker
+                ((interp :: Expr -> TypeChecker ()) e))) []) emptyTypeCheckState
