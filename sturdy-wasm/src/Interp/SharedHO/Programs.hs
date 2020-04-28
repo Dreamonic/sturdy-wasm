@@ -4,7 +4,7 @@ module Interp.SharedHO.Programs
 where
 
 import Interp.SharedHO.GenericInterpreter
-import Interp.SharedHO.TypeCheckerSimple
+import Interp.SharedHO.TypeChecker
 import Interp.SharedHO.Types
 
 i32Val = Value I32
