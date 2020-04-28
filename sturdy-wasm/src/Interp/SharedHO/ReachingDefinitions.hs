@@ -21,6 +21,7 @@ import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.ConcreteInterpreter (ToyState, stack, variables, emptyToySt)
 import Interp.SharedHO.Joinable
 import Interp.SharedHO.Types
+import Interp.SharedHO.BoolVal
 
 type ReachDefState = ToyState (RD.Set Int)
 
@@ -29,6 +30,9 @@ newtype ReachDef a = ReachDef
         (State ReachDefState)) a }
     deriving (Functor, Applicative, Monad, MonadState ReachDefState,
         MonadReader ReachDefState, MonadError (Either String Int))
+
+instance FromBool Int where
+    fromBool b = if b then 1 else 0
 
 instance Joinable a => Joinable (ToyState a) where
     join st1 st2 = over stack (join $ view stack st2) $
