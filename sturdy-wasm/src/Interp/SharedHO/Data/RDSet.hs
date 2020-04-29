@@ -1,14 +1,14 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Interp.SharedHO.RDSet
+module Interp.SharedHO.Data.RDSet
 where
 
 import qualified Data.Set as S
 import qualified Data.Map as M
 
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
+import Interp.SharedHO.Data.Joinable
+import Interp.SharedHO.Data.BoolVal
 
 data Set a = Top | Mid (S.Set a) deriving (Eq, Show)
 

@@ -9,19 +9,10 @@
 module Interp.SharedHO.GenericInterpreter
 where
 
-import qualified Data.Map as M
 import Prelude hiding (const, lookup)
-import Data.List (intercalate)
-import Control.Monad.State hiding (fix, join, state)
-import Control.Monad.Reader hiding (fix, join)
-import Control.Monad.Except hiding (fix, join)
-import Control.Monad.Writer hiding (fix, join)
-import Control.Lens hiding (Const, assign)
-import Control.Lens.TH
 
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Types
+import Interp.SharedHO.Data.BoolVal
+import Interp.SharedHO.Data.Types
 
 data Expr
     = Branch Int

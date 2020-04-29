@@ -5,7 +5,8 @@ where
 
 import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.TypeCheckerSimple
-import Interp.SharedHO.Types
+import Interp.SharedHO.IntervalAnalysis
+import Interp.SharedHO.Data.Types
 
 i32Val = Value I32
 i64Val = Value I64

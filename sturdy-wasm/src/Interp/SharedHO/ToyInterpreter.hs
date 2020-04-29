@@ -17,9 +17,9 @@ import Control.Monad.Except hiding (fix, join)
 import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
-import qualified Interp.SharedHO.RDSet as RD
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
+import qualified Interp.SharedHO.Data.RDSet as RD
+import Interp.SharedHO.Data.Joinable
+import Interp.SharedHO.Data.BoolVal
 
 data Expr
     = Branch Int

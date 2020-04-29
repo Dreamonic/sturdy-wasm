@@ -19,12 +19,12 @@ import Control.Monad.Writer hiding (fix, join)
 import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Types
+import Interp.SharedHO.Data.Joinable
+import Interp.SharedHO.Data.BoolVal
+import Interp.SharedHO.Data.Types
 import Interp.SharedHO.GenericInterpreter
 
--- locals are scoped by blocks 
+-- locals are scoped by blocks
 -- so a local that is assigned in an inner block should not
 -- affect the outer block
 
@@ -35,7 +35,7 @@ import Interp.SharedHO.GenericInterpreter
 
 -- Interesting notes
 
--- if you want to use multiple exceptions, 
+-- if you want to use multiple exceptions,
 -- meaning that checking continues after an error is detected
 -- the result of operations that are invalid can be unknown
 -- you can do 3 things in these situations I think
@@ -43,13 +43,13 @@ import Interp.SharedHO.GenericInterpreter
 --    using something like an "Unknown" value which always typechecks
 -- 2. Make certain operations typed, such as add. This ensures that you can throw
 --    the error and just push whatever you where expecting to be on the stack
---    this is the case for blocks in webassembly 
+--    this is the case for blocks in webassembly
 -- 3. Stop typechecking entirely and tell the user to fix this problem
 --    before moving on to typechecking the rest
 
 -- there are 2 ways you can handle unconditional jumping
 -- 1. ignoring all code after the jump, assuming that it is unreachable
--- 2. typechecking it based on the result of typechecking the branch, 
+-- 2. typechecking it based on the result of typechecking the branch,
 --    like it is done in webassembly
 
 data TypeCheckState = TypeCheckState {
@@ -64,7 +64,7 @@ makeLenses ''TypeCheckState
 
 newtype TypeChecker a = TypeChecker
     { runTypeChecker :: WriterT [String] (ReaderT [MaybeType] (State TypeCheckState)) a}
-    deriving (Functor, Applicative, Monad, MonadReader [MaybeType], 
+    deriving (Functor, Applicative, Monad, MonadReader [MaybeType],
         MonadState TypeCheckState, MonadWriter [String])
 
 -- TODO find good definition for join
@@ -72,11 +72,11 @@ matchingReturn :: [MaybeType] -> [MaybeType] -> MaybeType
 matchingReturn stack1 stack2 = case (stack1, stack2) of
     (v1:_, v2:_) -> v1 `join` v2
     _ -> Unknown
-    
+
 unexpectedType expected actual =
     ["Expected " ++ (show expected) ++ " but got " ++ (show actual)]
 
-invalidOp op t1 t2 = 
+invalidOp op t1 t2 =
     ["Cannot " ++ op ++ " " ++ (show t1) ++ " and " ++ (show t2)]
 
 instance Interp TypeChecker MaybeType where
@@ -137,7 +137,7 @@ instance Interp TypeChecker MaybeType where
         st <- get
         let expected = M.lookup var $ view variables st
         case expected of
-            (Just t) -> when (t /= v) $ 
+            (Just t) -> when (t /= v) $
                 tell $ ["Cannot assign " ++ (show v) ++ " to " ++ var ++ " of " ++ (show t)]
             Nothing -> put $ over variables (M.insert var v) st
 
@@ -166,7 +166,7 @@ instance Fix (TypeChecker ()) where
     fix f = f (fix f)
 
 typecheck :: Expr -> (((), [String]), TypeCheckState)
-typecheck e = 
+typecheck e =
     runState
         (runReaderT
             (runWriterT

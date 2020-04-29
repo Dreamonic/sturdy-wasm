@@ -5,10 +5,12 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.ReachingDefinitions
+module Interp.SharedHO.IntervalAnalysis
 where
 
+import Data.Abstract.InfiniteNumbers
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Prelude hiding (const, lookup)
 import Control.Monad.State hiding (fix, join, state)
 import Control.Monad.Reader hiding (fix, join)
@@ -16,21 +18,29 @@ import Control.Monad.Except hiding (fix, join)
 import Control.Lens hiding (Const, assign)
 
 import Interp.SharedHO.GenericInterpreter
+import Interp.SharedHO.Data.Interval as Interval
+import Interp.SharedHO.Data.Widening
 import Interp.SharedHO.Data.Joinable
-import qualified Interp.SharedHO.Data.RDSet as RD
 import Interp.SharedHO.Data.ToyState
 import Interp.SharedHO.Data.Types
 import Interp.SharedHO.Data.BoolVal
 
-type ReachDefState = ToyState (RD.Set Value)
+instance StdWideningSet (InfiniteNumber Value) where
+    stdWSet = S.fromList [NegInfinity, -32, -16, -8, -4, -2, -1, 0, 1, 2, 4, 8,
+                          16, 32, Infinity]
 
-newtype ReachDef a = ReachDef
-    { runReachDef :: ExceptT (Either String Int) (ReaderT ReachDefState
-        (State ReachDefState)) a }
-    deriving (Functor, Applicative, Monad, MonadState ReachDefState,
-        MonadReader ReachDefState, MonadError (Either String Int))
+instance FromBool a => FromBool (InfiniteNumber a) where
+    fromBool b = Number $ fromBool b
 
-instance Joinable a => Joinable (ReachDef a) where
+type IAnalysState = ToyState (Interval (InfiniteNumber Value))
+
+newtype IAnalys a = IAnalys
+    { runIAnalys :: ExceptT (Either String Int) (ReaderT IAnalysState
+        (State IAnalysState)) a }
+    deriving (Functor, Applicative, Monad, MonadState IAnalysState,
+        MonadReader IAnalysState, MonadError (Either String Int))
+
+instance Joinable a => Joinable (IAnalys a) where
     join f g = do
         st <- get
         x <- f
@@ -41,7 +51,7 @@ instance Joinable a => Joinable (ReachDef a) where
         put $ st1 `join` st2
         return $ x `join` y
 
-instance Interp ReachDef (RD.Set Value) where
+instance Interp IAnalys (Interval (InfiniteNumber Value)) where
     pushBlock _ _ br adv = do
         st1 <- get
         put $ set stack [] st1
@@ -56,15 +66,15 @@ instance Interp ReachDef (RD.Set Value) where
 
     popBlock n = throwError $ Right n
 
-    const v = return $ RD.singleton v
+    const v = return $ Interval.degenerate $ Number v
 
-    add v1 v2 = return $ RD.add v1 v2
+    add v1 v2 = return $ Interval.add v1 v2
 
-    eqz = return . RD.eqz
+    eqz = return . Interval.eqz
 
-    lt v1 v2 = return $ RD.lt v1 v2
+    lt v1 v2 = return $ Interval.lt v1 v2
 
-    if_ c t f = RD.if_ c t f
+    if_ c t f = Interval.if_ c t f
 
     assign var v = do
         modify $ over variables (M.insert var v)
@@ -86,21 +96,22 @@ instance Interp ReachDef (RD.Set Value) where
             []  -> throwError $ Left $ "Tried to pop value from empty stack."
 
 
-instance Fix (ReachDef ()) where
+instance Fix (IAnalys ()) where
     fix f = do
         st <- get
         img <- ask
         if st == img
             then return ()
             else do
-                let st' = st `join` img
+                let st' = img `widening` st
                 put st'
                 local (\_ -> st') $ f (fix f)
 
-runRD :: Expr -> (Either (Either String Int) (), ToyState (RD.Set Value))
-runRD e = runState
+runIA :: Expr -> (Either (Either String Int) (), ToyState (Interval
+    (InfiniteNumber Value)))
+runIA e = runState
               (runReaderT
                   (runExceptT
-                      (runReachDef
-                          ((interp :: Expr -> ReachDef ()) e)))
+                      (runIAnalys
+                          ((interp :: Expr -> IAnalys ()) e)))
                               emptyToySt) emptyToySt

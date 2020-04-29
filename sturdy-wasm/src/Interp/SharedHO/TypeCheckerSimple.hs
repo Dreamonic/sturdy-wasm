@@ -19,9 +19,9 @@ import Control.Monad.Writer hiding (fix, join)
 import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Types
+import Interp.SharedHO.Data.Joinable
+import Interp.SharedHO.Data.BoolVal
+import Interp.SharedHO.Data.Types
 import Interp.SharedHO.GenericInterpreter
 
 data CType
