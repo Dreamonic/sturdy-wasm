@@ -5,7 +5,9 @@ where
 
 import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.TypeChecker
-import Interp.SharedHO.Types
+import Interp.SharedHO.IntervalAnalysis
+import Interp.SharedHO.ReachingDefinitions
+import Interp.SharedHO.Data.Types
 
 i32Val = Value I32
 i64Val = Value I64
@@ -64,6 +66,19 @@ infiniteLoop = Seq
     [ Const (i32Val 0)
     , Assign "x"
     , Loop I32 $ Seq [Const (i32Val 1), Var "x", Add, Assign "x", Branch 0]
+    , Var "x"
+    ]
+
+infiniteLoop2 :: Expr
+infiniteLoop2 = Seq
+    [ Const (i32Val 0)
+    , Assign "y"
+    , Const (i32Val 8)
+    , Assign "x"
+    , Loop I32 $ Seq [ Const (i32Val 1), Var "y", Add, Assign "y"
+                     , Const (i32Val 8), Const (i32Val 1), Add, Assign "x"
+                     , Branch 0
+                     ]
     , Var "x"
     ]
 

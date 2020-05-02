@@ -18,9 +18,9 @@ import Control.Monad.Writer hiding (fix, join)
 import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Types
+import Interp.SharedHO.Data.Joinable
+import Interp.SharedHO.Data.BoolVal
+import Interp.SharedHO.Data.Types
 import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.Exceptions
 
@@ -53,8 +53,8 @@ instance Interp TypeChecker CType where
     pushBlock rty blockType _ adv = do
         outerBlockState <- get
         put $ set stack [] outerBlockState
-        if blockType == BackwardJump 
-            then local (Nothing :) adv 
+        if blockType == BackwardJump
+            then local (Nothing :) adv
             else local (Just rty :) adv
         val <- pop
         case val of

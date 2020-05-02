@@ -9,9 +9,8 @@
 module Interp.SharedHO.ConcreteInterpreter
 where
 
-import qualified Data.Map as M
 import Prelude hiding (const, lookup)
-import Data.List (intercalate)
+import qualified Data.Map as M
 import Control.Monad.State hiding (fix, join, state)
 import Control.Monad.Reader hiding (fix, join)
 import Control.Monad.Except hiding (fix, join)
@@ -19,18 +18,10 @@ import Control.Monad.Writer hiding (fix, join)
 import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
-import Interp.SharedHO.Joinable
-import Interp.SharedHO.BoolVal
-import Interp.SharedHO.Types
+import Interp.SharedHO.Data.BoolVal
+import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.ToyState
 import Interp.SharedHO.GenericInterpreter
-
-
-data ToyState v = ToyState { _variables :: M.Map String v
-                           , _stack :: [v] } deriving (Show, Eq)
-
-emptyToySt = ToyState M.empty []
-
-makeLenses ''ToyState
 
 newtype Concrete a = Concrete
     { runConcrete :: ExceptT (Either String Int) (State (ToyState Value)) a }
@@ -54,15 +45,9 @@ instance Interp Concrete Value where
 
     const = return
 
-    add (Value t1 v1) (Value t2 v2) =
-        if t1 == t2
-            then return $ Value t1 (v1 + v2)
-            else throwError $ Left "Invalid add"
+    add v1 v2 = return $ v1 + v2
 
-    lt (Value t1 v1) (Value t2 v2) =
-        if t1 == t2
-            then return $ Value t1 (fromBool $ v1 < v2)
-            else throwError $ Left "Invalid comparison"
+    lt v1 v2 = return $ v1 + v2
 
     eqz (Value t v) = return $ Value t (fromBool . not . toBool $ v)
 
@@ -96,5 +81,3 @@ run e = runState
             (runExceptT
                 (runConcrete
                     ((interp :: Expr -> Concrete ()) e))) emptyToySt
-
-

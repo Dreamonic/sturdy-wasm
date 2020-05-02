@@ -1,4 +1,4 @@
-module Interp.SharedHO.BoolVal
+module Interp.SharedHO.Data.BoolVal
 where
 
 class ToBool a where
