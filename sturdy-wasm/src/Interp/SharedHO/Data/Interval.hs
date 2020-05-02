@@ -25,8 +25,11 @@ instance Ord a => Joinable (Interval a) where
 
 instance (StdWideningSet a, Ord a) => Widening (Interval a) where
     (Interval l1 h1) `widening` (Interval l2 h2) =
-        let leastLowInB i = S.findMin stdWSet -- S.findMax $ S.union (S.singleton i) (fst $ S.split i stdWSet)
-            leastUpInB i  = S.findMax stdWSet -- S.findMin $ S.union (S.singleton i) (snd $ S.split i stdWSet)
+        let helper i pick = if S.member i stdWSet
+                                then i
+                                else pick $ S.split i stdWSet
+            leastLowInB i = helper i $ S.findMax . fst
+            leastUpInB i  = helper i $ S.findMin . snd
             l3            = if l1 <= l2 then l1 else leastLowInB l2
             h3            = if h1 >= h2 then h1 else leastUpInB h2
         in  Interval l3 h3

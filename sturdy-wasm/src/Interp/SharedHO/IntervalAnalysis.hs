@@ -100,12 +100,11 @@ instance Fix (IAnalys ()) where
     fix f = do
         st <- get
         img <- ask
-        if st == img
+        let st' = img `widening` st
+        put st'
+        if st' == img
             then return ()
-            else do
-                let st' = img `widening` st
-                put st'
-                local (\_ -> st') $ f (fix f)
+            else local (\_ -> st') $ f (fix f)
 
 runIA :: Expr -> (Either (Either String Int) (), ToyState (Interval
     (InfiniteNumber Value)))

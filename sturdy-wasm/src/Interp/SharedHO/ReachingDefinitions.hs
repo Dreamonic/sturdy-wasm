@@ -90,12 +90,11 @@ instance Fix (ReachDef ()) where
     fix f = do
         st <- get
         img <- ask
-        if st == img
+        let st' = st `join` img
+        put st'
+        if st' == img
             then return ()
-            else do
-                let st' = st `join` img
-                put st'
-                local (\_ -> st') $ f (fix f)
+            else local (\_ -> st') $ f (fix f)
 
 runRD :: Expr -> (Either (Either String Int) (), ToyState (RD.Set Value))
 runRD e = runState

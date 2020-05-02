@@ -10,13 +10,18 @@ import qualified Data.Map as M
 import Interp.SharedHO.Data.Joinable
 import Interp.SharedHO.Data.BoolVal
 
-data Set a = Top | Mid (S.Set a) deriving (Eq, Show)
+data Set a = Top | Mid (S.Set a) deriving Eq
 
 fromSet :: S.Set a -> Set a
 fromSet s = if S.size s > 10 then Top else Mid s
 
 singleton :: a -> Set a
 singleton v = fromSet $ S.singleton v
+
+instance Show a => Show (Set a) where
+    show rds = case rds of
+        Mid s -> "{" ++ (init . tail $ show $ S.toList s) ++ "}"
+        Top   -> "⊤"
 
 instance Ord a => Joinable (Set a) where
     join (Mid s1) (Mid s2) = fromSet $ s1 `S.union` s2
