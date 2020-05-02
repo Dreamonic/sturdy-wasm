@@ -4,7 +4,7 @@ module Interp.SharedHO.Programs
 where
 
 import Interp.SharedHO.GenericInterpreter
-import Interp.SharedHO.TypeCheckerSimple
+import Interp.SharedHO.TypeChecker
 import Interp.SharedHO.IntervalAnalysis
 import Interp.SharedHO.ReachingDefinitions
 import Interp.SharedHO.Data.Types

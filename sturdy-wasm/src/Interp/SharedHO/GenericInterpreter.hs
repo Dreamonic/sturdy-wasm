@@ -34,8 +34,13 @@ instance ToBool Integer where
 instance FromBool Integer where
     fromBool b = if b then 1 else 0
 
+data BlockType
+    = BackwardJump
+    | ForwardJump
+    deriving (Show, Eq)
+
 class Monad m => Interp m v | m -> v where
-    pushBlock :: Type -> Bool -> m () -> m () -> m ()
+    pushBlock :: Type -> BlockType -> m () -> m () -> m ()
     popBlock :: Int -> m ()
     const :: Value -> m v
     add :: v -> v -> m v
@@ -54,9 +59,9 @@ interp :: (Interp m a, Fix (m ())) => Expr -> m ()
 interp expr = case expr of
     Branch n -> popBlock n
 
-    Block rty e -> pushBlock rty False (return ()) (interp e)
+    Block rty e -> pushBlock rty ForwardJump (return ()) (interp e)
 
-    Loop rty e -> fix $ \br -> pushBlock rty True br (interp e)
+    Loop rty e -> fix $ \br -> pushBlock rty BackwardJump br (interp e)
 
     Seq es -> sequence_ (interp <$> es)
 
@@ -83,8 +88,8 @@ interp expr = case expr of
 
     If rty t f -> do
         c <- pop
-        let t' = pushBlock rty False (return ()) (interp t)
-        let f' = pushBlock rty False (return ()) (interp f)
+        let t' = pushBlock rty ForwardJump (return ()) (interp t)
+        let f' = pushBlock rty ForwardJump (return ()) (interp f)
         if_ c t' f'
 
     Assign var -> do

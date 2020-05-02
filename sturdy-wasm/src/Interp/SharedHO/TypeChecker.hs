@@ -1,17 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interp.SharedHO.TypeChecker
-where
+module Interp.SharedHO.TypeChecker where
 
 import qualified Data.Map as M
 import Prelude hiding (const, lookup)
 import Data.List (intercalate)
+import Data.Maybe (isJust)
 import Control.Monad.State hiding (fix, join, state)
 import Control.Monad.Reader hiding (fix, join)
 import Control.Monad.Except hiding (fix, join)
@@ -23,39 +22,22 @@ import Interp.SharedHO.Data.Joinable
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Types
 import Interp.SharedHO.GenericInterpreter
+import Interp.SharedHO.Exceptions
 
--- locals are scoped by blocks
--- so a local that is assigned in an inner block should not
--- affect the outer block
+data CType
+    = AnyT
+    | SomeT Type
+    deriving (Show)
 
--- it is assumed that the type of locals can not change
-
--- it is assumed that blocks should typecheck under context
--- but can not affect the state of surrounding blocks
-
--- Interesting notes
-
--- if you want to use multiple exceptions,
--- meaning that checking continues after an error is detected
--- the result of operations that are invalid can be unknown
--- you can do 3 things in these situations I think
--- 1. Assume the operations following the invalid operation get what they expect
---    using something like an "Unknown" value which always typechecks
--- 2. Make certain operations typed, such as add. This ensures that you can throw
---    the error and just push whatever you where expecting to be on the stack
---    this is the case for blocks in webassembly
--- 3. Stop typechecking entirely and tell the user to fix this problem
---    before moving on to typechecking the rest
-
--- there are 2 ways you can handle unconditional jumping
--- 1. ignoring all code after the jump, assuming that it is unreachable
--- 2. typechecking it based on the result of typechecking the branch,
---    like it is done in webassembly
+instance Eq CType where
+    a == b = case (a, b) of
+        (SomeT a', SomeT b') -> a' == b'
+        _                    -> True
 
 data TypeCheckState = TypeCheckState {
-    _variables :: M.Map String MaybeType,
-    _stack :: [MaybeType],
-    _unreachable :: Bool
+    _variables :: M.Map String CType,
+    _stack :: [CType],
+    _is_top :: Bool
 } deriving (Show, Eq)
 
 emptyTypeCheckState = TypeCheckState M.empty [] False
@@ -63,120 +45,94 @@ emptyTypeCheckState = TypeCheckState M.empty [] False
 makeLenses ''TypeCheckState
 
 newtype TypeChecker a = TypeChecker
-    { runTypeChecker :: WriterT [String] (ReaderT [MaybeType] (State TypeCheckState)) a}
-    deriving (Functor, Applicative, Monad, MonadReader [MaybeType],
-        MonadState TypeCheckState, MonadWriter [String])
+    { runTypeChecker :: ExceptT TException (ReaderT [Maybe Type] (State TypeCheckState)) a}
+    deriving (Functor, Applicative, Monad, MonadReader [Maybe Type],
+        MonadState TypeCheckState, MonadError TException)
 
--- TODO find good definition for join
-matchingReturn :: [MaybeType] -> [MaybeType] -> MaybeType
-matchingReturn stack1 stack2 = case (stack1, stack2) of
-    (v1:_, v2:_) -> v1 `join` v2
-    _ -> Unknown
-
-unexpectedType expected actual =
-    ["Expected " ++ (show expected) ++ " but got " ++ (show actual)]
-
-invalidOp op t1 t2 =
-    ["Cannot " ++ op ++ " " ++ (show t1) ++ " and " ++ (show t2)]
-
-instance Interp TypeChecker MaybeType where
-    pushBlock rty isLoop _ adv = do
+instance Interp TypeChecker CType where
+    pushBlock rty blockType _ adv = do
         outerBlockState <- get
         put $ set stack [] outerBlockState
-        if isLoop
-            then local (Unknown :) adv
-            else local (Known rty :) adv
-        innerBlockState <- get
-        let innerStack = view stack innerBlockState
-        let isUnreachable = view unreachable innerBlockState
-        unless (isUnreachable) $ do
-            if null innerStack
-                then tell ["Cannot pop from empty stack"]
-                else when ((head innerStack) /= Known rty)
-                    $ tell (unexpectedType rty (head innerStack))
-        put $ over stack (Known rty :) outerBlockState
+        if blockType == BackwardJump
+            then local (Nothing :) adv
+            else local (Just rty :) adv
+        val <- pop
+        case val of
+            SomeT val' | val' /= rty -> throwError $ TypeMismatch rty val'
+            _                        -> return ()
+        put $ over stack (SomeT rty :) outerBlockState
 
     popBlock n = do
-        rtys <- drop n <$> ask
+        rtys <- asks (drop n)
         st   <- get
         let stack' = view stack st
         if null rtys
-            then tell ["Can't break " ++ show n]
+            then throwError $ InvalidDepth n (length rtys)
             else do
                 let rty = head rtys
-                when (rty /= Unknown) $ do
+                when (isJust rty) $ do
                     val <- pop
-                    if val == rty
-                        then put $ over stack tail st
-                        else tell $ unexpectedType rty stack'
-                modify (set unreachable True)
+                    case (val, rty) of
+                        (SomeT val', Just rty') | val' == rty' ->
+                            put $ over stack tail st
+                        (AnyT, Just _) -> put $ over stack tail st
+                        _              -> throwError $ TypeMismatch rty stack'
+                modify (set is_top True)
+                modify (set stack [])
 
-    const = return . Known . getType
+    const = return . SomeT . getType
 
-    add t1 t2 = do
-        unless (t1 == t2) $ tell (invalidOp "add" t1 t2)
-        return $ t1 `join` t2
+    add t1 t2 =
+        if t1 /= t2 then throwError (InvalidOp "add" t1 t2) else return t1
 
-    lt t1 t2 = do
-        unless (t1 == t2) $ tell (invalidOp "compare" t1 t2)
-        return $ Known I32
+    lt t1 t2 = if t1 /= t2
+        then throwError (InvalidOp "compare" t1 t2)
+        else return $ SomeT I32
 
-    eqz = return
+    eqz _ = return $ SomeT I32
 
-    if_ _ t f = do
+    if_ rty t f = do
         st <- get
         t
-        stack1 <- view stack <$> get
+        stack1 <- gets (view stack)
         put st
         f
-        stack2 <- view stack <$> get
-        let rty = matchingReturn stack1 stack2
-        put $ over stack (rty :) st
+        stack2 <- gets (view stack)
+        if head stack1 == rty && head stack2 == rty
+            then put $ over stack (rty :) st
+            else throwError $ TypeMismatch (head stack1) (head stack2)
 
     assign var v = do
         st <- get
         let expected = M.lookup var $ view variables st
         case expected of
-            (Just t) -> when (t /= v) $
-                tell $ ["Cannot assign " ++ (show v) ++ " to " ++ var ++ " of " ++ (show t)]
-            Nothing -> put $ over variables (M.insert var v) st
+            (Just t) -> when (t /= v) $ throwError $ InvalidAssignment v var t
+            Nothing  -> put $ over variables (M.insert var v) st
 
     lookup var = do
         st <- get
         case M.lookup var (view variables st) of
             Just v  -> return v
-            Nothing -> do
-                tell ["Var " ++ var ++ " not in scope"]
-                return Unknown
+            Nothing -> throwError $ NotInScope var
 
     push v = modify $ over stack (v :)
 
     pop = do
         st <- get
         case view stack st of
-            v:_ -> do
+            v : _ -> do
                 modify $ over stack tail
                 return v
-            []  -> do
-                unless (view unreachable st) $
-                    tell ["Tried to pop value from empty stack."]
-                return Unknown
+            [] -> if view is_top st
+                then return AnyT
+                else throwError StackUnderflow
 
 instance Fix (TypeChecker ()) where
     fix f = f (fix f)
 
-typecheck :: Expr -> (((), [String]), TypeCheckState)
-typecheck e =
-    runState
-        (runReaderT
-            (runWriterT
-                (runTypeChecker
-                    ((interp :: Expr -> TypeChecker ()) e))) []) emptyTypeCheckState
-
-typecheck' :: Expr -> IO ()
-typecheck' e = do
-    let result = typecheck e
-    let state = snd result
-    let errors = snd $ fst result
-    putStrLn $ show state
-    putStrLn $ intercalate "\n" errors
+typecheck :: Expr -> (Either TException (), TypeCheckState)
+typecheck e = runState
+    (runReaderT
+        (runExceptT
+            (runTypeChecker
+                ((interp :: Expr -> TypeChecker ()) e))) []) emptyTypeCheckState
