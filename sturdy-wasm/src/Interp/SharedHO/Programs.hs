@@ -7,6 +7,7 @@ import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.TypeChecker
 import Interp.SharedHO.IntervalAnalysis
 import Interp.SharedHO.ReachingDefinitions
+import Interp.SharedHO.ConcreteInterpreter
 import Interp.SharedHO.Data.Types
 
 i32Val = Value I32

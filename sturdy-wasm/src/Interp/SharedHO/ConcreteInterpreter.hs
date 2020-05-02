@@ -47,7 +47,7 @@ instance Interp Concrete Value where
 
     add v1 v2 = return $ v1 + v2
 
-    lt v1 v2 = return $ v1 + v2
+    lt v1 v2 = return $ fromBool $ v1 < v2
 
     eqz (Value t v) = return $ Value t (fromBool . not . toBool $ v)
 
