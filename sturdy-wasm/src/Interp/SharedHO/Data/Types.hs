@@ -45,18 +45,3 @@ instance Num Value where
     abs         = unValOp abs
     signum      = unValOp signum
     fromInteger = Value I32
-
-data MaybeType
-    = Known Type
-    | Unknown
-    deriving (Show)
-
-instance Eq MaybeType where
-    a == b = case (a, b) of
-        (Known a', Known b') -> a' == b'
-        _ -> True
-
-instance Joinable MaybeType where
-    join a b = case (a, b) of
-        (Known a', Known b') | a' == b' -> a
-        _ -> Unknown
