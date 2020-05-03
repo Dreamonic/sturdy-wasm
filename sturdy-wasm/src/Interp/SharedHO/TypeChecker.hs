@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GADTs #-}
 
 module Interp.SharedHO.TypeChecker where
 
@@ -119,8 +118,8 @@ instance Interp TypeChecker CType where
         st <- get
         let expected = M.lookup var $ view variables st
         case expected of
-            (Just t) -> when (t /= v) $ throwError $ InvalidAssignment v var t
-            Nothing  -> put $ over variables (M.insert var v) st
+            Just t  -> when (t /= v) $ throwError $ InvalidAssignment v var t
+            Nothing -> put $ over variables (M.insert var v) st
 
     lookup var = do
         st <- get
