@@ -39,12 +39,12 @@ instance Ord Value where
     (<=) = binValOpGeneric (<=)
 
 instance Num Value where
-    (+)           = binValOp (+)
-    (*)           = binValOp (*)
-    negate        = unValOp negate
-    abs           = unValOp abs
-    signum        = unValOp signum
-    fromInteger n = Value I32 n
+    (+)         = binValOp (+)
+    (*)         = binValOp (*)
+    negate      = unValOp negate
+    abs         = unValOp abs
+    signum      = unValOp signum
+    fromInteger = Value I32
 
 data MaybeType
     = Known Type
