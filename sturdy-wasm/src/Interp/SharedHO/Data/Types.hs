@@ -39,24 +39,9 @@ instance Ord Value where
     (<=) = binValOpGeneric (<=)
 
 instance Num Value where
-    (+)           = binValOp (+)
-    (*)           = binValOp (*)
-    negate        = unValOp negate
-    abs           = unValOp abs
-    signum        = unValOp signum
-    fromInteger n = Value I32 n
-
-data MaybeType
-    = Known Type
-    | Unknown
-    deriving (Show)
-
-instance Eq MaybeType where
-    a == b = case (a, b) of
-        (Known a', Known b') -> a' == b'
-        _ -> True
-
-instance Joinable MaybeType where
-    join a b = case (a, b) of
-        (Known a', Known b') | a' == b' -> a
-        _ -> Unknown
+    (+)         = binValOp (+)
+    (*)         = binValOp (*)
+    negate      = unValOp negate
+    abs         = unValOp abs
+    signum      = unValOp signum
+    fromInteger = Value I32

@@ -30,19 +30,31 @@ data CType
     deriving (Show)
 
 instance Eq CType where
-    a == b = case (a, b) of
-        (SomeT a', SomeT b') -> a' == b'
-        _                    -> True
+    SomeT x == SomeT y = x == y
+    _       == _       = True
+
+data StackType = Top | Mid deriving (Show, Eq)
+
+data CheckerType = CheckerType {
+    _stackTyping :: StackType,
+    _stack :: [CType]
+} deriving (Show, Eq)
 
 data TypeCheckState = TypeCheckState {
     _variables :: M.Map String CType,
-    _stack :: [CType],
-    _is_top :: Bool
+    _checkType :: CheckerType
 } deriving (Show, Eq)
 
-emptyTypeCheckState = TypeCheckState M.empty [] False
+emptyTypeCheckState = TypeCheckState M.empty (CheckerType Mid [])
 
 makeLenses ''TypeCheckState
+makeLenses ''CheckerType
+
+stackTyping' :: Lens' TypeCheckState StackType
+stackTyping' = checkType . stackTyping
+
+stack' :: Lens' TypeCheckState [CType]
+stack' = checkType . stack
 
 newtype TypeChecker a = TypeChecker
     { runTypeChecker :: ExceptT TException (ReaderT [Maybe Type] (State TypeCheckState)) a}
@@ -52,7 +64,7 @@ newtype TypeChecker a = TypeChecker
 instance Interp TypeChecker CType where
     pushBlock rty blockType _ adv = do
         outerBlockState <- get
-        put $ set stack [] outerBlockState
+        put $ set stack' [] outerBlockState
         if blockType == BackwardJump
             then local (Nothing :) adv
             else local (Just rty :) adv
@@ -60,12 +72,12 @@ instance Interp TypeChecker CType where
         case val of
             SomeT val' | val' /= rty -> throwError $ TypeMismatch rty val'
             _                        -> return ()
-        put $ over stack (SomeT rty :) outerBlockState
+        put $ over stack' (SomeT rty :) outerBlockState
 
     popBlock n = do
         rtys <- asks (drop n)
         st   <- get
-        let stack' = view stack st
+        let stack'' = view stack' st
         if null rtys
             then throwError $ InvalidDepth n (length rtys)
             else do
@@ -74,11 +86,11 @@ instance Interp TypeChecker CType where
                     val <- pop
                     case (val, rty) of
                         (SomeT val', Just rty') | val' == rty' ->
-                            put $ over stack tail st
-                        (AnyT, Just _) -> put $ over stack tail st
-                        _              -> throwError $ TypeMismatch rty stack'
-                modify (set is_top True)
-                modify (set stack [])
+                            put $ over stack' tail st
+                        (AnyT, Just _) -> put $ over stack' tail st
+                        _              -> throwError $ TypeMismatch rty stack''
+                modify (set stackTyping' Top)
+                modify (set stack' [])
 
     const = return . SomeT . getType
 
@@ -94,20 +106,20 @@ instance Interp TypeChecker CType where
     if_ rty t f = do
         st <- get
         t
-        stack1 <- gets (view stack)
+        stack1 <- gets (view stack')
         put st
         f
-        stack2 <- gets (view stack)
+        stack2 <- gets (view stack')
         if head stack1 == rty && head stack2 == rty
-            then put $ over stack (rty :) st
+            then put $ over stack' (rty :) st
             else throwError $ TypeMismatch (head stack1) (head stack2)
 
     assign var v = do
         st <- get
         let expected = M.lookup var $ view variables st
         case expected of
-            (Just t) -> when (t /= v) $ throwError $ InvalidAssignment v var t
-            Nothing  -> put $ over variables (M.insert var v) st
+            Just t  -> when (t /= v) $ throwError $ InvalidAssignment v var t
+            Nothing -> put $ over variables (M.insert var v) st
 
     lookup var = do
         st <- get
@@ -115,15 +127,15 @@ instance Interp TypeChecker CType where
             Just v  -> return v
             Nothing -> throwError $ NotInScope var
 
-    push v = modify $ over stack (v :)
+    push v = modify $ over stack' (v :)
 
     pop = do
         st <- get
-        case view stack st of
+        case view stack' st of
             v : _ -> do
-                modify $ over stack tail
+                modify $ over stack' tail
                 return v
-            [] -> if view is_top st
+            [] -> if view stackTyping' st == Top
                 then return AnyT
                 else throwError StackUnderflow
 
