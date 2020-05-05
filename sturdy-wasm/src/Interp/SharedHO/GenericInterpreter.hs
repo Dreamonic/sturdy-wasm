@@ -35,7 +35,7 @@ data Func = Func { funcParams :: [(String, Type)]
                  , funcRetType :: Type
                  , funcBody :: Expr }
 
-type ToyModule = M.Map String Func
+type ToyModule = [(String, Func)]
 
 data BlockType
     = BackwardJump
@@ -54,8 +54,9 @@ class Monad m => Interp m v | m -> v where
     lookup :: String -> m v
     push :: v -> m ()
     pop :: m v
-    lookupFunc :: String -> m Func
-    call :: m () -> m ()
+    assignFunc :: String -> m () -> m () -> m ()
+    call :: String -> m ()
+    closure :: m () -> m ()
     return_ :: m ()
 
 class Fix c where
@@ -108,10 +109,24 @@ interp expr = case expr of
 
     Nop -> return ()
 
-    Call name -> call $ do
-        f <- lookupFunc name
-        sequence_ $ map (\(var,_) -> do { v <- pop; assign var v })
-            (funcParams f)
-        interp $ funcBody f
+    Call name -> call name
 
     Return -> return_
+
+
+interpFunc :: (Interp m v, Fix (m ())) => ToyModule -> String -> [v]-> m ()
+interpFunc mdl startName vs =
+    let popAssign var = do { v <- pop; assign var v }
+
+        firstCall name f = fix $ \recCall -> do
+                assignFunc name recCall $ do
+                    args <- mapM (\(var, _) -> do { v <- pop; return (var, v) }) (funcParams f)
+                    closure $ do
+                        mapM_ (\(var, v) -> assign var v) args
+                        interp $ funcBody f
+
+        start = do
+            mapM_ push vs
+            call startName
+
+    in  foldl (\m (name, f) -> assignFunc name (firstCall name f) m) start mdl

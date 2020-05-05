@@ -23,13 +23,13 @@ import Interp.SharedHO.Data.Types
 import Interp.SharedHO.Data.ToyState
 import Interp.SharedHO.GenericInterpreter
 
-data Interrupt = Error String | Branching Int | Returning
+data Interrupt = Error String | Branching Int | Returning deriving (Eq, Show)
 
 newtype Concrete a = Concrete
-    { runConcrete :: ExceptT Interrupt (ReaderT ToyModule (State
-        (ToyState Value))) a }
+    { runConcrete :: ExceptT Interrupt (ReaderT (M.Map String (Concrete ()))
+        (State (ToyState Value))) a }
     deriving (Functor, Applicative, Monad, MonadState (ToyState Value),
-        MonadError Interrupt, MonadReader ToyModule)
+        MonadError Interrupt, MonadReader (M.Map String (Concrete ())))
 
 instance Interp Concrete Value where
     pushBlock _ _ br adv = do
@@ -77,19 +77,21 @@ instance Interp Concrete Value where
                 return v
             []  -> throwError $ Error $ "Tried to pop value from empty stack."
 
-    lookupFunc name = do
-        mdl <- ask
-        case M.lookup name mdl of
-            Just f  -> return f
+    assignFunc name f m = local (M.insert name f) m
+
+    call name = do
+        fs <- ask
+        case M.lookup name fs of
+            Just f  -> catchError f $ \e -> case e of
+                Returning   -> return ()
+                Branching _ -> throwError $ Error $ "Func-level branch."
+                Error msg   -> throwError $ Error msg
             Nothing -> throwError $ Error $ "No func " ++ name ++ " in module."
 
-    call enter = do
+    closure m = do
         st <- get
         put emptyToySt
-        catchError enter $ \e -> case e of
-            Returning   -> return ()
-            Branching _ -> throwError $ Error $ "Func-level branch."
-            Error msg   -> throwError $ Error msg
+        m
         v <- pop
         put st
         push v
@@ -105,3 +107,12 @@ run e = runState
                 (runExceptT
                     (runConcrete
                         ((interp :: Expr -> Concrete ()) e))) M.empty) emptyToySt
+
+runFunc :: ToyModule -> String -> [Value] -> (Either Interrupt (), ToyState Value)
+runFunc mdl name vs =
+    runState
+        (runReaderT
+            (runExceptT
+                (runConcrete
+                    ((interpFunc :: ToyModule -> String -> [Value] -> Concrete ()) mdl name vs)))
+                        M.empty) emptyToySt
