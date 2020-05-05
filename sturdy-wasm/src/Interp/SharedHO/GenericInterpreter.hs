@@ -10,6 +10,7 @@ module Interp.SharedHO.GenericInterpreter
 where
 
 import Prelude hiding (const, lookup)
+import qualified Data.Map as M
 
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Types
@@ -27,12 +28,14 @@ data Expr
     | Assign String
     | Var String
     | Nop
+    | Call String
+    | Return
 
-instance ToBool Integer where
-    toBool = (/=) 0
+data Func = Func { funcParams :: [(String, Type)]
+                 , funcRetType :: Type
+                 , funcBody :: Expr }
 
-instance FromBool Integer where
-    fromBool b = if b then 1 else 0
+type ToyModule = M.Map String Func
 
 data BlockType
     = BackwardJump
@@ -51,6 +54,9 @@ class Monad m => Interp m v | m -> v where
     lookup :: String -> m v
     push :: v -> m ()
     pop :: m v
+    lookupFunc :: String -> m Func
+    call :: m () -> m ()
+    return_ :: m ()
 
 class Fix c where
     fix :: (c -> c) -> c
@@ -101,3 +107,11 @@ interp expr = case expr of
         push v
 
     Nop -> return ()
+
+    Call name -> call $ do
+        f <- lookupFunc name
+        sequence_ $ map (\(var,_) -> do { v <- pop; assign var v })
+            (funcParams f)
+        interp $ funcBody f
+
+    Return -> return_
