@@ -95,6 +95,8 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
                 return v
             []  -> throwError $ Left $ "Tried to pop value from empty stack."
 
+top :: Interval (InfiniteNumber Value)
+top = Interval NegInfinity Infinity
 
 instance Fix (IAnalys ()) where
     fix f = do
@@ -103,7 +105,7 @@ instance Fix (IAnalys ()) where
         let st' = img `widening` st
         put st'
         if st' == img
-            then return ()
+            then push top
             else local (\_ -> st') $ f (fix f)
 
 runIA :: Expr -> (Either (Either String Int) (), ToyState (Interval

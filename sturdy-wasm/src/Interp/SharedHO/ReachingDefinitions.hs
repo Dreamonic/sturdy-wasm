@@ -93,7 +93,7 @@ instance Fix (ReachDef ()) where
         let st' = st `join` img
         put st'
         if st' == img
-            then return ()
+            then push RD.Top
             else local (\_ -> st') $ f (fix f)
 
 runRD :: Expr -> (Either (Either String Int) (), ToyState (RD.Set Value))
