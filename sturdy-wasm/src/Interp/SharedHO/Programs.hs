@@ -7,6 +7,7 @@ import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.TypeChecker
 import Interp.SharedHO.IntervalAnalysis
 import Interp.SharedHO.ReachingDefinitions
+import Interp.SharedHO.ConcreteInterpreter
 import Interp.SharedHO.Data.Types
 
 i32Val = Value I32
@@ -136,11 +137,15 @@ nestedLoop = Seq
         ]
     ]
 
+unreachableWellTyped :: Expr
 unreachableWellTyped = Block I32 $ Seq [Const (i32Val 1), Branch 0, Add]
 
+unreachableIllTyped :: Expr
 unreachableIllTyped = Block I32 $ Seq
     [Const (i32Val 1), Branch 0, Const (i32Val 1), Const (i64Val 1), Add]
 
-loopReturn = Loop I32 $ Seq [(Const (i64Val 1)), Branch 0]
+loopReturn :: Expr
+loopReturn = Loop I32 $ Seq [Const (i64Val 1), Branch 0]
 
-blockReturn = Block I32 $ Seq [(Const (i64Val 1)), Branch 0]
+blockReturn :: Expr
+blockReturn = Block I32 $ Seq [Const (i64Val 1), Branch 0]
