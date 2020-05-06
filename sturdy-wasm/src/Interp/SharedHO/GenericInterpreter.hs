@@ -116,13 +116,16 @@ interp expr = case expr of
 
 interpFunc :: (Interp m v, Fix (m ())) => ToyModule -> String -> [v]-> m ()
 interpFunc mdl startName vs =
-    let popAssign var = do { v <- pop; assign var v }
+    let getArgs f = mapM (\(var, _) -> do { v <- pop; return (var, v) })
+            (funcParams f)
+
+        assignArgs = mapM_ (\(var, v) -> assign var v)
 
         firstCall name f = fix $ \recCall -> do
                 assignFunc name recCall $ do
-                    args <- mapM (\(var, _) -> do { v <- pop; return (var, v) }) (funcParams f)
+                    args <- getArgs f
                     closure $ do
-                        mapM_ (\(var, v) -> assign var v) args
+                        assignArgs args
                         interp $ funcBody f
 
         start = do
