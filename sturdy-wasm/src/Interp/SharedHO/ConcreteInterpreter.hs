@@ -82,16 +82,16 @@ instance Interp Concrete Value where
     call name = do
         fs <- ask
         case M.lookup name fs of
-            Just f  -> catchError f $ \e -> case e of
-                Returning   -> return ()
-                Branching _ -> throwError $ Error $ "Func-level branch."
-                Error msg   -> throwError $ Error msg
+            Just f  -> f
             Nothing -> throwError $ Error $ "No func " ++ name ++ " in module."
 
     closure m = do
         st <- get
         put emptyToySt
-        m
+        catchError m $ \e -> case e of
+            Returning   -> return ()
+            Branching _ -> throwError $ Error $ "Func-level branch."
+            Error msg   -> throwError $ Error msg
         v <- pop
         put st
         push v

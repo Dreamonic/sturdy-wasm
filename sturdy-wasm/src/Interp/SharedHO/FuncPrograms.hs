@@ -42,6 +42,10 @@ gaussSum = Func [("n", I32)] I32 $
                 , Add
                 , Call "gauss"
                 , Add
+                , Return
+                , Add
+                , Add
+                , Add
                 ])
         ]
 
@@ -51,3 +55,5 @@ generalMdl = [ ("add", addition)
              , ("gauss", gaussSum)
              , ("lt", lessThan)
              ]
+
+runMdl = runFunc generalMdl
