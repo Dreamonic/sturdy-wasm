@@ -139,8 +139,8 @@ instance Interp TypeChecker CType where
                 then return AnyT
                 else throwError StackUnderflow
 
-instance Fix (TypeChecker ()) where
-    fix f = f (fix f)
+instance Fix () TypeChecker where
+    fix _ f = let x = f x in x
 
 typecheck :: Expr -> (Either TException (), TypeCheckState)
 typecheck e = runState

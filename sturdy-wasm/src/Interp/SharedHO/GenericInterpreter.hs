@@ -14,6 +14,7 @@ import qualified Data.Map as M
 
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.AbstractState
 
 data Expr
     = Branch Int
@@ -59,16 +60,20 @@ class Monad m => Interp m v | m -> v where
     closure :: m () -> m ()
     return_ :: m ()
 
-class Fix c where
-    fix :: (c -> c) -> c
+-- data FixType = LoopFix | FuncFix String
 
-interp :: (Interp m a, Fix (m ())) => Expr -> m ()
+class (AbstractState s, Monad m) => Fix s m | m -> s where
+    fix :: s -> (m () -> m ()) -> m ()
+    fix' :: (m () -> m ()) -> m ()
+    fix' = fix emptySt
+
+interp :: (Interp m a, Fix s m) => Expr -> m ()
 interp expr = case expr of
     Branch n -> popBlock n
 
     Block rty e -> pushBlock rty ForwardJump (return ()) (interp e)
 
-    Loop rty e -> fix $ \br -> pushBlock rty BackwardJump br (interp e)
+    Loop rty e -> fix' $ \br -> pushBlock rty BackwardJump br (interp e)
 
     Seq es -> sequence_ (interp <$> es)
 
@@ -114,14 +119,14 @@ interp expr = case expr of
     Return -> return_
 
 
-interpFunc :: (Interp m v, Fix (m ())) => ToyModule -> String -> [v]-> m ()
+interpFunc :: (Interp m v, Fix s m) => ToyModule -> String -> [v]-> m ()
 interpFunc mdl startName vs =
     let getArgs f = mapM (\(var, _) -> do { v <- pop; return (var, v) })
             (funcParams f)
 
         assignArgs = mapM_ (\(var, v) -> assign var v)
 
-        firstCall name f = fix $ \recCall -> do
+        firstCall name f = fix' $ \recCall -> do
                 assignFunc name recCall $ do
                     args <- getArgs f
                     closure $ do
