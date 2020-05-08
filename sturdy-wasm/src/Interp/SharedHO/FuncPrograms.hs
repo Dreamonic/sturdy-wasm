@@ -56,12 +56,44 @@ infiniteRecursion :: Func
 infiniteRecursion = Func [] I32 $
     Call "rec"
 
+evenRec :: Func
+evenRec = Func [("n", I32)] I32 $
+    Seq
+        [ Var "n"
+        , Eqz
+        , If I32
+            (Const (i32Val 1))
+            (Seq
+                [ Var "n"
+                , Const (i32Val (-1))
+                , Add
+                , Call "odd"
+                ])
+        ]
+
+oddRec :: Func
+oddRec = Func [("n", I32)] I32 $
+    Seq
+        [ Var "n"
+        , Eqz
+        , If I32
+            (Const (i32Val 0))
+            (Seq
+                [ Var "n"
+                , Const (i32Val (-1))
+                , Add
+                , Call "even"
+                ])
+        ]
+
 generalMdl :: ToyModule
 generalMdl = [ ("add", addition)
              , ("ifStat", ifStatement)
              , ("gauss", gaussSum)
              , ("lt", lessThan)
              , ("rec", infiniteRecursion)
+             , ("even", evenRec)
+             , ("odd", oddRec)
              ]
 
 runMdl = runFunc generalMdl
