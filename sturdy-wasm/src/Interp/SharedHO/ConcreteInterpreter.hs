@@ -113,5 +113,5 @@ runFunc mdl name vs =
         (runReaderT
             (runExceptT
                 (runConcrete
-                    ((interpFunc :: ToyModule -> String -> [Value] -> Concrete ()) mdl name vs)))
-                        M.empty) emptyToySt
+                    ((interpFunc :: ToyModule -> String -> [Value] -> Concrete ())
+                        mdl name vs))) M.empty) emptyToySt

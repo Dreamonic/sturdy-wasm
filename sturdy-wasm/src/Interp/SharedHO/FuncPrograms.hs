@@ -4,12 +4,15 @@ where
 import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.ConcreteInterpreter
 import Interp.SharedHO.ReachingDefinitions
+import Interp.SharedHO.IntervalAnalysis
 import qualified Interp.SharedHO.Data.RDSet as RD
+import qualified Interp.SharedHO.Data.Interval as Interval
 import Interp.SharedHO.Data.Types
 
 i32Val = Value I32
 i64Val = Value I64
-rdVal x = RD.singleton x
+rdVal = RD.singleton
+iaVal = Interval.degenerate
 
 addition :: Func
 addition = Func [("x", I32), ("y", I32)] I32 $
@@ -98,3 +101,4 @@ generalMdl = [ ("add", addition)
 
 runMdl = runFunc generalMdl
 runMdlRD = runFuncRD generalMdl
+runMdlIA = runFuncIA generalMdl

@@ -132,5 +132,5 @@ runFuncRD mdl name vs =
         (runReaderT
             (runExceptT
                 (runReachDef
-                    ((interpFunc :: ToyModule -> String -> [RD.Set Value] -> ReachDef ()) mdl name vs)))
-                        M.empty) emptyToySt
+                    ((interpFunc :: ToyModule -> String -> [RD.Set Value] -> ReachDef ())
+                        mdl name vs))) M.empty) emptyToySt

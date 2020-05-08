@@ -24,6 +24,7 @@ import Interp.SharedHO.Data.Joinable
 import Interp.SharedHO.Data.ToyState
 import Interp.SharedHO.Data.Types
 import Interp.SharedHO.Data.BoolVal
+import Interp.SharedHO.Data.Interrupt
 
 instance StdWideningSet (InfiniteNumber Value) where
     stdWSet = S.fromList [NegInfinity, -32, -16, -8, -4, -2, -1, 0, 1, 2, 4, 8,
@@ -35,10 +36,10 @@ instance FromBool a => FromBool (InfiniteNumber a) where
 type IAnalysState = ToyState (Interval (InfiniteNumber Value))
 
 newtype IAnalys a = IAnalys
-    { runIAnalys :: ExceptT (Either String Int) (ReaderT IAnalysState
+    { runIAnalys :: ExceptT Interrupt (ReaderT (M.Map String (IAnalys ()))
         (State IAnalysState)) a }
     deriving (Functor, Applicative, Monad, MonadState IAnalysState,
-        MonadReader IAnalysState, MonadError (Either String Int))
+        MonadReader (M.Map String (IAnalys ())), MonadError Interrupt)
 
 instance Joinable a => Joinable (IAnalys a) where
     join f g = do
@@ -56,15 +57,16 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
         st1 <- get
         put $ set stack [] st1
         catchError adv $ \e -> case e of
-            Right n  -> if n <= 0
+            Branching n -> if n <= 0
                 then br
-                else throwError $ Right $ n - 1
-            Left msg -> throwError $ Left msg
+                else throwError $ Branching $ n - 1
+            Error msg   -> throwError $ Error msg
+            Returning   -> throwError $ Returning
         st2 <- get
         v <- pop
         put $ set stack (v : (view stack st1)) st2
 
-    popBlock n = throwError $ Right n
+    popBlock n = throwError $ Branching n
 
     const v = return $ Interval.degenerate $ Number v
 
@@ -83,7 +85,7 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
         st <- get
         case M.lookup var (view variables st) of
             Just v  -> return v
-            Nothing -> throwError $ Left $ "Var " ++ var ++ " not in scope."
+            Nothing -> throwError $ Error $ "Var " ++ var ++ " not in scope."
 
     push v = modify $ over stack (v:)
 
@@ -93,7 +95,28 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
             v:_ -> do
                 modify $ over stack tail
                 return v
-            []  -> throwError $ Left $ "Tried to pop value from empty stack."
+            []  -> throwError $ Error $ "Tried to pop value from empty stack."
+
+    assignFunc name f =  local (M.insert name f)
+
+    call name = do
+        fs <- ask
+        case M.lookup name fs of
+            Just f  -> f
+            Nothing -> throwError $ Error $ "No func " ++ name ++ " in module."
+
+    closure m = do
+        st <- get
+        put emptyToySt
+        catchError m $ \e -> case e of
+            Returning   -> return ()
+            Branching _ -> throwError $ Error $ "Func-level branch."
+            Error msg   -> throwError $ Error msg
+        v <- pop
+        put st
+        push v
+
+    return_ = throwError Returning
 
 top :: Interval (InfiniteNumber Value)
 top = Interval NegInfinity Infinity
@@ -107,11 +130,22 @@ instance Fix IAnalysState IAnalys where
             then push top
             else f $ fix st' f
 
-runIA :: Expr -> (Either (Either String Int) (), ToyState (Interval
+runIA :: Expr -> (Either Interrupt (), ToyState (Interval
     (InfiniteNumber Value)))
 runIA e = runState
               (runReaderT
                   (runExceptT
                       (runIAnalys
                           ((interp :: Expr -> IAnalys ()) e)))
-                              emptyToySt) emptyToySt
+                              M.empty) emptyToySt
+
+runFuncIA :: ToyModule -> String -> [Interval (InfiniteNumber Value)]
+    -> (Either Interrupt (), IAnalysState)
+runFuncIA mdl name vs =
+    runState
+        (runReaderT
+            (runExceptT
+                (runIAnalys
+                    ((interpFunc :: ToyModule -> String
+                        -> [Interval (InfiniteNumber Value)] -> IAnalys ())
+                            mdl name vs))) M.empty) emptyToySt
