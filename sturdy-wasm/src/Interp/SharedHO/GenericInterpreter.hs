@@ -10,6 +10,7 @@ module Interp.SharedHO.GenericInterpreter
 where
 
 import Prelude hiding (const, lookup)
+import qualified Data.Map as M
 
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Types
@@ -27,12 +28,14 @@ data Expr
     | Assign String
     | Var String
     | Nop
+    | Call String
+    | Return
 
-instance ToBool Integer where
-    toBool = (/=) 0
+data Func = Func { funcParams :: [(String, Type)]
+                 , funcRetType :: Type
+                 , funcBody :: Expr }
 
-instance FromBool Integer where
-    fromBool b = if b then 1 else 0
+type ToyModule = [(String, Func)]
 
 data BlockType
     = BackwardJump
@@ -51,6 +54,10 @@ class Monad m => Interp m v | m -> v where
     lookup :: String -> m v
     push :: v -> m ()
     pop :: m v
+    assignFunc :: String -> m () -> m () -> m ()
+    call :: String -> m ()
+    closure :: m () -> m ()
+    return_ :: m ()
 
 class Fix c where
     fix :: (c -> c) -> c
@@ -101,3 +108,28 @@ interp expr = case expr of
         push v
 
     Nop -> return ()
+
+    Call name -> call name
+
+    Return -> return_
+
+
+interpFunc :: (Interp m v, Fix (m ())) => ToyModule -> String -> [v]-> m ()
+interpFunc mdl startName vs =
+    let getArgs f = mapM (\(var, _) -> do { v <- pop; return (var, v) })
+            (funcParams f)
+
+        assignArgs = mapM_ (\(var, v) -> assign var v)
+
+        firstCall name f = fix $ \recCall -> do
+                assignFunc name recCall $ do
+                    args <- getArgs f
+                    closure $ do
+                        assignArgs args
+                        interp $ funcBody f
+
+        start = do
+            mapM_ push vs
+            call startName
+
+    in  foldl (\m (name, f) -> assignFunc name (firstCall name f) m) start mdl

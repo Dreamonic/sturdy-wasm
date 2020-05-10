@@ -17,6 +17,12 @@ data Value = Value {
 instance Show Value where
     show (Value t v) = show t ++ ":" ++ show v
 
+instance ToBool Integer where
+    toBool = (/=) 0
+
+instance FromBool Integer where
+    fromBool b = if b then 1 else 0
+
 instance ToBool Value where
     toBool = ((/=) 0) . getVal
 
