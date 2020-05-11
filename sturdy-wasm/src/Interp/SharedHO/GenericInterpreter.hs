@@ -57,7 +57,7 @@ class Monad m => Interp m v | m -> v where
     pop :: m v
     assignFunc :: String -> m () -> m () -> m ()
     call :: String -> m ()
-    closure :: m () -> m ()
+    closure :: Type -> m () -> m ()
     return_ :: m ()
 
 -- data FixType = LoopFix | FuncFix String
@@ -126,10 +126,10 @@ interpFunc mdl startName vs =
 
         assignArgs = mapM_ (\(var, v) -> assign var v)
 
-        firstCall name f = fix' $ \recCall -> do
+        firstCall name f = fix' $ \recCall ->
                 assignFunc name recCall $ do
                     args <- getArgs f
-                    closure $ do
+                    closure (funcRetType f) $ do
                         assignArgs args
                         interp $ funcBody f
 

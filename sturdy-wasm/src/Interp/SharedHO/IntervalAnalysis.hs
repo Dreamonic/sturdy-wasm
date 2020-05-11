@@ -105,7 +105,7 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
             Just f  -> f
             Nothing -> throwError $ Error $ "No func " ++ name ++ " in module."
 
-    closure m = do
+    closure _ m = do
         st <- get
         put emptyToySt
         catchError m $ \e -> case e of

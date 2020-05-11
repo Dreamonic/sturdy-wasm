@@ -5,6 +5,7 @@ import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.ConcreteInterpreter
 import Interp.SharedHO.ReachingDefinitions
 import Interp.SharedHO.IntervalAnalysis
+import Interp.SharedHO.TypeChecker
 import qualified Interp.SharedHO.Data.RDSet as RD
 import qualified Interp.SharedHO.Data.Interval as Interval
 import Interp.SharedHO.Data.Types
@@ -102,3 +103,4 @@ generalMdl = [ ("add", addition)
 runMdl = runFunc generalMdl
 runMdlRD = runFuncRD generalMdl
 runMdlIA = runFuncIA generalMdl
+runMdlTC = runFuncTC generalMdl
