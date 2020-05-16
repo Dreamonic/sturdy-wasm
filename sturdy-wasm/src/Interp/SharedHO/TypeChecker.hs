@@ -60,7 +60,7 @@ type CheckerFuncMap = M.Map String (TypeChecker ())
 
 newtype TypeChecker a = TypeChecker
     { runTypeChecker :: ExceptT TException (StateT CheckerFuncMap 
-        (ReaderT[Maybe Type] (State TypeCheckState))) a}
+        (ReaderT [Maybe Type] (State TypeCheckState))) a}
     deriving (Functor, Applicative, Monad, MonadReader [Maybe Type],
         MonadState CheckerFuncMap, MonadError TException)
 
@@ -158,7 +158,8 @@ instance Interp TypeChecker CType where
                 else throwError StackUnderflow
 
     assignFunc name f adv = do
-        modify (M.insert name f)
+        funcMap <- get
+        unless (M.member name funcMap) $ modify (M.insert name f)
         adv
 
     call name = do
@@ -170,9 +171,8 @@ instance Interp TypeChecker CType where
     closure rty m = do
         st <- getSt
         putSt emptyTypeCheckState
-        m
+        pushBlock rty ForwardJump (return ()) m
         v <- pop
-        when (v /= SomeT rty) $ throwError $ TypeMismatch rty v
         putSt st
         push v
 
