@@ -40,43 +40,43 @@ data CheckerType = CheckerType {
     _stack :: [CType]
 } deriving (Show, Eq)
 
-data TypeCheckState = TypeCheckState {
+data CheckerState = CheckerState {
     _variables :: M.Map String CType,
     _checkType :: CheckerType
 } deriving (Show, Eq)
 
-emptyTypeCheckState = TypeCheckState M.empty (CheckerType Mid [])
+emptyTypeCheckState = CheckerState M.empty (CheckerType Mid [])
 
-makeLenses ''TypeCheckState
+makeLenses ''CheckerState
 makeLenses ''CheckerType
 
-stackTyping' :: Lens' TypeCheckState StackType
+stackTyping' :: Lens' CheckerState StackType
 stackTyping' = checkType . stackTyping
 
-stack' :: Lens' TypeCheckState [CType]
+stack' :: Lens' CheckerState [CType]
 stack' = checkType . stack
 
 type CheckerFuncMap = M.Map String (TypeChecker ())
 
 newtype TypeChecker a = TypeChecker
     { runTypeChecker :: ExceptT TException (StateT CheckerFuncMap 
-        (ReaderT [Maybe Type] (State TypeCheckState))) a}
+        (ReaderT [Maybe Type] (State CheckerState))) a}
     deriving (Functor, Applicative, Monad, MonadReader [Maybe Type],
         MonadState CheckerFuncMap, MonadError TException)
 
-checkStateLift :: State TypeCheckState a -> TypeChecker a
+checkStateLift :: State CheckerState a -> TypeChecker a
 checkStateLift m = TypeChecker . lift . lift $ lift m
 
-getSt :: TypeChecker TypeCheckState
+getSt :: TypeChecker CheckerState
 getSt = checkStateLift get
 
-getsSt :: (TypeCheckState -> a) -> TypeChecker a
+getsSt :: (CheckerState -> a) -> TypeChecker a
 getsSt f = checkStateLift $ gets f
 
-putSt :: TypeCheckState -> TypeChecker ()
+putSt :: CheckerState -> TypeChecker ()
 putSt st = checkStateLift $ put st
 
-modifySt :: (TypeCheckState -> TypeCheckState) -> TypeChecker ()
+modifySt :: (CheckerState -> CheckerState) -> TypeChecker ()
 modifySt f = checkStateLift $ modify f
 
 instance Interp TypeChecker CType where
@@ -125,12 +125,12 @@ instance Interp TypeChecker CType where
         st <- getSt
         t
         stack1 <- getsSt (view stack')
+        when (head stack1 /= rty) $ throwError $ TypeMismatch rty (head stack1)
         putSt st
         f
         stack2 <- getsSt (view stack')
-        if head stack1 == rty && head stack2 == rty
-            then putSt $ over stack' (rty :) st
-            else throwError $ TypeMismatch (head stack1) (head stack2)
+        when (head stack2 /= rty) $ throwError $ TypeMismatch rty (head stack2)
+        putSt $ over stack' (rty :) st
 
     assign var v = do
         st <- getSt
@@ -183,7 +183,7 @@ instance Interp TypeChecker CType where
 instance Fix () TypeChecker where
     fix _ f = f (return ())
 
-runTC :: Expr -> (Either TException (), TypeCheckState)
+runTC :: Expr -> (Either TException (), CheckerState)
 runTC e = do
     let
         ((result, _), st) = runState
@@ -200,7 +200,7 @@ runTC e = do
 
     (result, st)
 
-runFuncTC :: ToyModule -> String -> [CType] -> (Either TException (), TypeCheckState)
+runFuncTC :: ToyModule -> String -> [CType] -> (Either TException (), CheckerState)
 runFuncTC mdl name vs = do
     let
         ((result, _), st) = runState
