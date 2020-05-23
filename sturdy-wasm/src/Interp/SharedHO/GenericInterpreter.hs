@@ -59,10 +59,10 @@ class Monad m => Interp m v | m -> v where
     closure :: m () -> m ()
     return_ :: m ()
 
-class Fix c where
-    fix :: (c -> c) -> c
+class Monad m => Fix m where
+    fix :: (m () -> m ()) -> m ()
 
-interp :: (Interp m a, Fix (m ())) => Expr -> m ()
+interp :: (Interp m a, Fix m) => Expr -> m ()
 interp expr = case expr of
     Branch n -> popBlock n
 
@@ -114,7 +114,7 @@ interp expr = case expr of
     Return -> return_
 
 
-interpFunc :: (Interp m v, Fix (m ())) => ToyModule -> String -> [v]-> m ()
+interpFunc :: (Interp m v, Fix m) => ToyModule -> String -> [v]-> m ()
 interpFunc mdl startName vs =
     let getArgs f = mapM (\(var, _) -> do { v <- pop; return (var, v) })
             (funcParams f)

@@ -21,9 +21,8 @@ import Control.Lens.TH
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Types
 import Interp.SharedHO.Data.ToyState
+import Interp.SharedHO.Data.Interrupt
 import Interp.SharedHO.GenericInterpreter
-
-data Interrupt = Error String | Branching Int | Returning deriving (Eq, Show)
 
 newtype Concrete a = Concrete
     { runConcrete :: ExceptT Interrupt (ReaderT (M.Map String (Concrete ()))
@@ -77,7 +76,7 @@ instance Interp Concrete Value where
                 return v
             []  -> throwError $ Error $ "Tried to pop value from empty stack."
 
-    assignFunc name f m = local (M.insert name f) m
+    assignFunc name f = local (M.insert name f)
 
     call name = do
         fs <- ask
@@ -98,7 +97,7 @@ instance Interp Concrete Value where
 
     return_ = throwError Returning
 
-instance Fix (Concrete ()) where
+instance Fix Concrete where
     fix f = f (fix f)
 
 run :: Expr -> (Either Interrupt (), ToyState Value)
@@ -114,5 +113,5 @@ runFunc mdl name vs =
         (runReaderT
             (runExceptT
                 (runConcrete
-                    ((interpFunc :: ToyModule -> String -> [Value] -> Concrete ()) mdl name vs)))
-                        M.empty) emptyToySt
+                    ((interpFunc :: ToyModule -> String -> [Value] -> Concrete ())
+                        mdl name vs))) M.empty) emptyToySt
