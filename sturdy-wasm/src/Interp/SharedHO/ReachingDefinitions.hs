@@ -108,14 +108,17 @@ instance Interp ReachDef (RD.Set Value) where
 
     return_ = throwError Returning
 
-instance Fix ReachDefState ReachDef where
-    fix img f = do
-        st <- get
-        let st' = st `join` img
-        put st'
-        if st' == img
-            then push RD.Top
-            else f $ fix st' f
+fixRD :: ReachDefState -> (ReachDef () -> ReachDef ()) -> ReachDef ()
+fixRD img f = do
+    st <- get
+    let st' = st `join` img
+    put st'
+    if st' == img
+        then push RD.Top
+        else f $ fixRD st' f
+
+instance Fix ReachDef where
+    fix = fixRD emptyToySt
 
 runRD :: Expr -> (Either Interrupt (), ReachDefState)
 runRD e = runState

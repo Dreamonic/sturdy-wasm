@@ -180,8 +180,8 @@ instance Interp TypeChecker CType where
         blockCount <- asks length
         popBlock $ blockCount - 1
 
-instance Fix () TypeChecker where
-    fix _ f = f (return ())
+instance Fix TypeChecker where
+    fix f = f (return ())
 
 runTC :: Expr -> (Either TException (), CheckerState)
 runTC e = do

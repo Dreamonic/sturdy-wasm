@@ -121,14 +121,17 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
 top :: Interval (InfiniteNumber Value)
 top = Interval NegInfinity Infinity
 
-instance Fix IAnalysState IAnalys where
-    fix img f = do
-        st <- get
-        let st' = img `widening` st
-        put st'
-        if st' == img
-            then push top
-            else f $ fix st' f
+fixIA :: IAnalysState -> (IAnalys () -> IAnalys ()) -> IAnalys ()
+fixIA img f = do
+    st <- get
+    let st' = img `widening` st
+    put st'
+    if st' == img
+        then push top
+        else f $ fixIA st' f
+
+instance Fix IAnalys where
+    fix = fixIA emptyToySt
 
 runIA :: Expr -> (Either Interrupt (), ToyState (Interval
     (InfiniteNumber Value)))
