@@ -18,6 +18,8 @@ data TException where
     -- |Takes the target depth and max depth
     InvalidDepth :: (Show a, Show b) => a -> b -> TException
 
+    NameError :: (Show a) => a -> TException
+
 
 instance Show TException where
     show (TypeMismatch expected actual) =
@@ -40,3 +42,5 @@ instance Show TException where
 
     show (InvalidDepth target max) =
         "Can't break " ++ show target ++ " (max " ++ show max ++ ")"
+
+    show (NameError name) = "'" ++ show name ++ "' is not defined"
