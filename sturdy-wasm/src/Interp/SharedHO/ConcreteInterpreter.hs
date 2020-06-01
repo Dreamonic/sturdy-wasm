@@ -19,7 +19,7 @@ import Control.Lens hiding (Const, assign)
 import Control.Lens.TH
 
 import Interp.SharedHO.Data.BoolVal
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 import Interp.SharedHO.Data.ToyState
 import Interp.SharedHO.Data.Interrupt
 import Interp.SharedHO.GenericInterpreter
@@ -52,7 +52,7 @@ instance Interp Concrete Value where
 
     lt v1 v2 = return $ fromBool $ v1 < v2
 
-    eqz (Value t v) = return $ Value t (fromBool . not . toBool $ v)
+    eqz v = return $ fromBool . not . toBool $ v
 
     if_ c t f = if toBool c then t else f
 

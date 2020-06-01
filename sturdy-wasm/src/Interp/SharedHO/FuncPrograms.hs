@@ -7,15 +7,17 @@ import Interp.SharedHO.ReachingDefinitions
 import Interp.SharedHO.IntervalAnalysis
 import qualified Interp.SharedHO.Data.RDSet as RD
 import qualified Interp.SharedHO.Data.Interval as Interval
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 
-i32Val = Value I32
-i64Val = Value I64
 rdVal = RD.singleton
 iaVal = Interval.degenerate
 
 addition :: Func
 addition = Func [("x", I32), ("y", I32)] I32 $
+    Seq [Var "x", Var "y", Add]
+
+addition64 :: Func
+addition64 = Func [("x", I64), ("y", I64)] I64 $
     Seq [Var "x", Var "y", Add]
 
 lessThan :: Func
@@ -25,12 +27,12 @@ lessThan = Func [("x", I32), ("y", I32)] I32 $
 ifStatement :: Func
 ifStatement = Func [("x", I32)] I32 $
     Seq
-        [ Const (i32Val 0)
+        [ Const (I32Val 0)
         , Assign "y"
         , Var "x"
         , If I32
-             (Seq [Const (i32Val 2), Assign "y", Const (i32Val 0)])
-             (Seq [Const (i32Val 3), Assign "y", Const (i32Val 0)])
+             (Seq [Const (I32Val 2), Assign "y", Const (I32Val 0)])
+             (Seq [Const (I32Val 3), Assign "y", Const (I32Val 0)])
         , Var "y"
         ]
 
@@ -40,11 +42,11 @@ gaussSum = Func [("n", I32)] I32 $
         [ Var "n"
         , Eqz
         , If I32
-            (Const (i32Val 0))
+            (Const (I32Val 0))
             (Seq
                 [ Var "n"
                 , Var "n"
-                , Const (i32Val (-1))
+                , Const (I32Val (-1))
                 , Add
                 , Call "gauss"
                 , Add
@@ -65,10 +67,10 @@ evenRec = Func [("n", I32)] I32 $
         [ Var "n"
         , Eqz
         , If I32
-            (Const (i32Val 1))
+            (Const (I32Val 1))
             (Seq
                 [ Var "n"
-                , Const (i32Val (-1))
+                , Const (I32Val (-1))
                 , Add
                 , Call "odd"
                 ])
@@ -80,10 +82,10 @@ oddRec = Func [("n", I32)] I32 $
         [ Var "n"
         , Eqz
         , If I32
-            (Const (i32Val 0))
+            (Const (I32Val 0))
             (Seq
                 [ Var "n"
-                , Const (i32Val (-1))
+                , Const (I32Val (-1))
                 , Add
                 , Call "even"
                 ])
@@ -91,6 +93,7 @@ oddRec = Func [("n", I32)] I32 $
 
 generalMdl :: ToyModule
 generalMdl = [ ("add", addition)
+             , ("add64", addition64)
              , ("ifStat", ifStatement)
              , ("gauss", gaussSum)
              , ("lt", lessThan)

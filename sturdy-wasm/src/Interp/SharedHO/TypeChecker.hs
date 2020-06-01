@@ -20,7 +20,7 @@ import Control.Lens.TH
 
 import Interp.SharedHO.Data.Joinable
 import Interp.SharedHO.Data.BoolVal
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.Exceptions
 
@@ -140,7 +140,7 @@ instance Interp TypeChecker CType where
                 else throwError StackUnderflow
 
     fix f = f (fix f)
-    
+
 
 typecheck :: Expr -> (Either TException (), TypeCheckState)
 typecheck e = runState

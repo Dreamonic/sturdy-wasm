@@ -13,7 +13,7 @@ import Prelude hiding (const, lookup)
 import qualified Data.Map as M
 
 import Interp.SharedHO.Data.BoolVal
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 
 data Expr
     = Branch Int

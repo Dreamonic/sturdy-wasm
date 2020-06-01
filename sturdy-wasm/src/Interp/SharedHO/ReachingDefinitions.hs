@@ -19,7 +19,7 @@ import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.Data.Joinable
 import qualified Interp.SharedHO.Data.RDSet as RD
 import Interp.SharedHO.Data.ToyState
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Interrupt
 

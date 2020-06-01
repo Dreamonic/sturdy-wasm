@@ -22,7 +22,7 @@ import Interp.SharedHO.Data.Interval as Interval
 import Interp.SharedHO.Data.Widening
 import Interp.SharedHO.Data.Joinable
 import Interp.SharedHO.Data.ToyState
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Interrupt
 

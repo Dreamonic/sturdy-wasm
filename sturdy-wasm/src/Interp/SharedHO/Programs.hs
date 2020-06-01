@@ -8,76 +8,73 @@ import Interp.SharedHO.TypeChecker
 import Interp.SharedHO.IntervalAnalysis
 import Interp.SharedHO.ReachingDefinitions
 import Interp.SharedHO.ConcreteInterpreter
-import Interp.SharedHO.Data.Types
-
-i32Val = Value I32
-i64Val = Value I64
+import Interp.SharedHO.Data.Value
 
 addition :: Expr
-addition = Seq [Const (i32Val 2), Const (i32Val 5), Add]
+addition = Seq [Const (I32Val 2), Const (I32Val 5), Add]
 
 additionInvalid :: Expr
-additionInvalid = Seq [Const (i32Val 2), Const (i64Val 5), Add]
+additionInvalid = Seq [Const (I32Val 2), Const (I64Val 5), Add]
 
 ifStatement :: Expr
 ifStatement = Seq
-    [ Const (i32Val 0)
+    [ Const (I32Val 0)
     , Assign "y"
-    , Const (i32Val 0)
+    , Const (I32Val 0)
     , If I32
-         (Seq [Const (i32Val 2), Assign "y", Const (i32Val 0)])
-         (Seq [Const (i32Val 3), Assign "y", Const (i32Val 0)])
+         (Seq [Const (I32Val 2), Assign "y", Const (I32Val 0)])
+         (Seq [Const (I32Val 3), Assign "y", Const (I32Val 0)])
     , Var "y"
     ]
 
 invalidIfStatement :: Expr
 invalidIfStatement = Seq
-    [ Const (i32Val 0)
+    [ Const (I32Val 0)
     , Assign "y"
-    , Const (i32Val 0)
+    , Const (I32Val 0)
     , If I32
-         (Seq [Const (i64Val 2), Assign "y", Const (i32Val 0)])
-         (Seq [Const (i32Val 0), Const (i64Val 1), Add])
+         (Seq [Const (I64Val 2), Assign "y", Const (I32Val 0)])
+         (Seq [Const (I32Val 0), Const (I64Val 1), Add])
     , Var "y"
     ]
 
 invalidReturnType :: Expr
 invalidReturnType = Seq
-    [ Block I32 $ Seq [Const (i64Val 1), Branch 0]
-    , Const (i32Val 1)
+    [ Block I32 $ Seq [Const (I64Val 1), Branch 0]
+    , Const (I32Val 1)
     , Add
     ]
 
 finiteLoop :: Expr
 finiteLoop = Seq
-    [ Const (i32Val 0)
+    [ Const (I32Val 0)
     , Assign "x"
     , Loop I32 $ Seq
         [ Var "x"
-        , Const (i32Val 5)
+        , Const (I32Val 5)
         , Lt
         , If I32
-             (Seq [Const (i32Val 1), Var "x", Add, Assign "x", Branch 1, Var "x"])
+             (Seq [Const (I32Val 1), Var "x", Add, Assign "x", Branch 1, Var "x"])
              (Var "x")
         ]
     ]
 
 infiniteLoop :: Expr
 infiniteLoop = Seq
-    [ Const (i32Val 0)
+    [ Const (I32Val 0)
     , Assign "x"
-    , Loop I32 $ Seq [Const (i32Val 1), Var "x", Add, Assign "x", Branch 0]
+    , Loop I32 $ Seq [Const (I32Val 1), Var "x", Add, Assign "x", Branch 0]
     , Var "x"
     ]
 
 infiniteLoop2 :: Expr
 infiniteLoop2 = Seq
-    [ Const (i32Val 0)
+    [ Const (I32Val 0)
     , Assign "y"
-    , Const (i32Val 8)
+    , Const (I32Val 8)
     , Assign "x"
-    , Loop I32 $ Seq [ Const (i32Val 1), Var "y", Add, Assign "y"
-                     , Const (i32Val 8), Const (i32Val 1), Add, Assign "x"
+    , Loop I32 $ Seq [ Const (I32Val 1), Var "y", Add, Assign "y"
+                     , Const (I32Val 8), Const (I32Val 1), Add, Assign "x"
                      , Branch 0
                      ]
     , Var "x"
@@ -87,65 +84,65 @@ nestedBlock :: Expr
 nestedBlock = Seq
     [ Block I32 $ Seq
         [ Block I32
-            $ Seq [Const (i32Val 0), Branch 1, Const (i32Val 1), Add]
-        , Const (i32Val 2)
+            $ Seq [Const (I32Val 0), Branch 1, Const (I32Val 1), Add]
+        , Const (I32Val 2)
         , Add
         ]
-    , Const (i32Val 4)
+    , Const (I32Val 4)
     , Add
     ]
 
 nestedLoop :: Expr
 nestedLoop = Seq
-    [ Const (i32Val 0)
+    [ Const (I32Val 0)
     , Assign "x"
     , Loop I32 $ Seq
         [ Var "x"
-        , Const (i32Val 5)
+        , Const (I32Val 5)
         , Lt
         , If
             I32
             (Seq
-                [ Const (i32Val 1)
+                [ Const (I32Val 1)
                 , Var "x"
                 , Add
                 , Assign "x"
-                , Const (i32Val 0)
+                , Const (I32Val 0)
                 , Assign "y"
                 , Loop I32 $ Seq
                     [ Var "y"
-                    , Const (i32Val 5)
+                    , Const (I32Val 5)
                     , Var "x"
                     , Add
                     , Lt
                     , If
                         I32
                         (Seq
-                            [ Const (i32Val 1)
+                            [ Const (I32Val 1)
                             , Var "y"
                             , Add
                             , Assign "y"
                             , Branch 1
                             ]
                         )
-                        (Const (i32Val 1))
+                        (Const (I32Val 1))
                     ]
                 , Branch 0
                 ]
             )
-            (Const (i32Val 1))
+            (Const (I32Val 1))
         ]
     ]
 
 unreachableWellTyped :: Expr
-unreachableWellTyped = Block I32 $ Seq [Const (i32Val 1), Branch 0, Add]
+unreachableWellTyped = Block I32 $ Seq [Const (I32Val 1), Branch 0, Add]
 
 unreachableIllTyped :: Expr
 unreachableIllTyped = Block I32 $ Seq
-    [Const (i32Val 1), Branch 0, Const (i32Val 1), Const (i64Val 1), Add]
+    [Const (I32Val 1), Branch 0, Const (I32Val 1), Const (I64Val 1), Add]
 
 loopReturn :: Expr
-loopReturn = Loop I32 $ Seq [Const (i64Val 1), Branch 0]
+loopReturn = Loop I32 $ Seq [Const (I64Val 1), Branch 0]
 
 blockReturn :: Expr
-blockReturn = Block I32 $ Seq [Const (i64Val 1), Branch 0]
+blockReturn = Block I32 $ Seq [Const (I64Val 1), Branch 0]
