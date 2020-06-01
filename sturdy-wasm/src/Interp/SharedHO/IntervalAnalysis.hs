@@ -22,7 +22,7 @@ import Interp.SharedHO.Data.Interval as Interval
 import Interp.SharedHO.Data.Widening
 import Interp.SharedHO.Data.Joinable
 import Interp.SharedHO.Data.ToyState
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Interrupt
 
@@ -118,6 +118,9 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
 
     return_ = throwError Returning
 
+    fix = fixIA emptyToySt
+
+
 top :: Interval (InfiniteNumber Value)
 top = Interval NegInfinity Infinity
 
@@ -129,9 +132,6 @@ fixIA img f = do
     if st' == img
         then push top
         else f $ fixIA st' f
-
-instance Fix IAnalys where
-    fix = fixIA emptyToySt
 
 runIA :: Expr -> (Either Interrupt (), ToyState (Interval
     (InfiniteNumber Value)))

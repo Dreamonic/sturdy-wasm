@@ -19,7 +19,7 @@ import Interp.SharedHO.GenericInterpreter
 import Interp.SharedHO.Data.Joinable
 import qualified Interp.SharedHO.Data.RDSet as RD
 import Interp.SharedHO.Data.ToyState
-import Interp.SharedHO.Data.Types
+import Interp.SharedHO.Data.Value
 import Interp.SharedHO.Data.BoolVal
 import Interp.SharedHO.Data.Interrupt
 
@@ -108,6 +108,8 @@ instance Interp ReachDef (RD.Set Value) where
 
     return_ = throwError Returning
 
+    fix = fixRD emptyToySt
+
 fixRD :: ReachDefState -> (ReachDef () -> ReachDef ()) -> ReachDef ()
 fixRD img f = do
     st <- get
@@ -116,9 +118,6 @@ fixRD img f = do
     if st' == img
         then push RD.Top
         else f $ fixRD st' f
-
-instance Fix ReachDef where
-    fix = fixRD emptyToySt
 
 runRD :: Expr -> (Either Interrupt (), ReachDefState)
 runRD e = runState
