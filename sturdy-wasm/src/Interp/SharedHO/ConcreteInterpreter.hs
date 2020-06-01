@@ -97,7 +97,6 @@ instance Interp Concrete Value where
 
     return_ = throwError Returning
 
-instance Fix Concrete where
     fix f = f (fix f)
 
 run :: Expr -> (Either Interrupt (), ToyState Value)

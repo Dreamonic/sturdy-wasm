@@ -118,6 +118,9 @@ instance Interp IAnalys (Interval (InfiniteNumber Value)) where
 
     return_ = throwError Returning
 
+    fix = fixIA emptyToySt
+
+
 top :: Interval (InfiniteNumber Value)
 top = Interval NegInfinity Infinity
 
@@ -129,9 +132,6 @@ fixIA img f = do
     if st' == img
         then push top
         else f $ fixIA st' f
-
-instance Fix IAnalys where
-    fix = fixIA emptyToySt
 
 runIA :: Expr -> (Either Interrupt (), ToyState (Interval
     (InfiniteNumber Value)))
